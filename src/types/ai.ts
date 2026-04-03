@@ -75,8 +75,10 @@ export interface AdminAiResumeFailureItem {
   collaborationStatus?: string | null
   notificationStatus?: string | null
   notificationSentAt?: string | null
+  notificationFailureReason?: string | null
   notificationReceiptStatus?: string | null
   notificationReceiptAt?: string | null
+  notificationReceiptFailureReason?: string | null
   autoRemindStage?: string | null
   slaStatus?: string | null
   manualTakeoverByAdminId?: number | null
@@ -104,6 +106,12 @@ export interface AdminAiResumeFailureHandlingNote {
   assignmentAcknowledgedByAdminId?: number | null
   assignmentAcknowledgedByAdminName?: string | null
   assignmentAcknowledgedAt?: string | null
+  notificationStatus?: string | null
+  notificationSentAt?: string | null
+  notificationFailureReason?: string | null
+  notificationReceiptStatus?: string | null
+  notificationReceiptAt?: string | null
+  notificationReceiptFailureReason?: string | null
   reminderCount?: number | null
   lastRemindedByAdminId?: number | null
   lastRemindedByAdminName?: string | null
@@ -121,6 +129,8 @@ export interface AdminAiResumeFailureActionPayload {
   reason?: string
   assignedAdminId?: number
   escalationRoleCode?: string
+  notificationStatus?: string
+  notificationReceiptStatus?: string
 }
 
 export interface AdminAiResumeFailureQuery {

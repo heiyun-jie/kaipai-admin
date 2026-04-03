@@ -135,6 +135,7 @@
             <el-option label="待发送" value="pending_send" />
             <el-option label="已发送" value="sent" />
             <el-option label="已补发" value="resent" />
+            <el-option label="发送失败" value="send_failed" />
             <el-option label="无需通知" value="not_required" />
           </el-select>
         </el-form-item>
@@ -142,7 +143,9 @@
           <el-select v-model="failureFilters.notificationReceiptStatus" clearable style="width: 160px">
             <el-option label="未发送" value="not_sent" />
             <el-option label="待回执" value="pending_receipt" />
+            <el-option label="已送达" value="delivered" />
             <el-option label="已回执" value="received" />
+            <el-option label="回执失败" value="receipt_failed" />
             <el-option label="回执超时" value="receipt_overdue" />
             <el-option label="无需回执" value="not_required" />
           </el-select>
@@ -268,6 +271,24 @@
                   @click="openFailureAction('remind', row)"
                 >
                   人工催办
+                </PermissionButton>
+                <PermissionButton
+                  link
+                  type="primary"
+                  action="action.system.ai-resume.resolve"
+                  :disabled="!canPerformFailureAction('recordNotification', row)"
+                  @click="openFailureAction('recordNotification', row)"
+                >
+                  记录通知
+                </PermissionButton>
+                <PermissionButton
+                  link
+                  type="success"
+                  action="action.system.ai-resume.resolve"
+                  :disabled="!canPerformFailureAction('recordNotificationReceipt', row)"
+                  @click="openFailureAction('recordNotificationReceipt', row)"
+                >
+                  记录回执
                 </PermissionButton>
                 <PermissionButton
                   link
@@ -424,6 +445,24 @@
                   link
                   type="primary"
                   action="action.system.ai-resume.resolve"
+                  :disabled="!canPerformFailureAction('recordNotification', row)"
+                  @click="openFailureAction('recordNotification', row)"
+                >
+                  记录通知
+                </PermissionButton>
+                <PermissionButton
+                  link
+                  type="success"
+                  action="action.system.ai-resume.resolve"
+                  :disabled="!canPerformFailureAction('recordNotificationReceipt', row)"
+                  @click="openFailureAction('recordNotificationReceipt', row)"
+                >
+                  记录回执
+                </PermissionButton>
+                <PermissionButton
+                  link
+                  type="primary"
+                  action="action.system.ai-resume.resolve"
                   :disabled="!canPerformFailureAction('manualTakeover', row)"
                   @click="openFailureAction('manualTakeover', row)"
                 >
@@ -510,6 +549,8 @@
               <el-option label="分派处理人" value="ai_resume_assign" />
               <el-option label="确认接手" value="ai_resume_acknowledge" />
               <el-option label="人工催办" value="ai_resume_remind" />
+              <el-option label="记录通知" value="ai_resume_record_notification" />
+              <el-option label="记录回执" value="ai_resume_record_notification_receipt" />
               <el-option label="手工接管" value="ai_resume_manual_takeover" />
               <el-option label="跳过催办" value="ai_resume_skip_auto_remind" />
               <el-option label="升级处理" value="ai_resume_escalate" />
@@ -817,6 +858,18 @@
               />
             </el-select>
           </el-form-item>
+          <el-form-item v-if="actionMode === 'recordNotification'" label="通知结果">
+            <el-select v-model="actionForm.notificationStatus" style="width: 100%">
+              <el-option label="发送成功" value="sent" />
+              <el-option label="发送失败" value="send_failed" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="actionMode === 'recordNotificationReceipt'" label="回执结果">
+            <el-select v-model="actionForm.notificationReceiptStatus" style="width: 100%">
+              <el-option label="已送达" value="delivered" />
+              <el-option label="回执失败" value="receipt_failed" />
+            </el-select>
+          </el-form-item>
           <el-form-item label="处理备注" required>
             <el-input v-model="actionForm.reason" type="textarea" :rows="4" :placeholder="actionPlaceholder" />
           </el-form-item>
@@ -848,6 +901,8 @@ import {
   fetchAdminAiResumeSensitiveHits,
   ignoreAdminAiResumeFailure,
   manualTakeoverAdminAiResumeFailure,
+  recordNotificationAdminAiResumeFailure,
+  recordNotificationReceiptAdminAiResumeFailure,
   remindAdminAiResumeFailure,
   reviewAdminAiResumeFailure,
   skipAutoRemindAdminAiResumeFailure,
@@ -876,6 +931,8 @@ type FailureActionMode =
   | 'assign'
   | 'acknowledge'
   | 'remind'
+  | 'recordNotification'
+  | 'recordNotificationReceipt'
   | 'manualTakeover'
   | 'skipAutoRemind'
   | 'review'
@@ -910,7 +967,7 @@ const failureDetailVisible = ref(false)
 const failureDetail = ref<AdminAiResumeFailureItem | null>(null)
 const currentFailure = ref<AdminAiResumeFailureItem | null>(null)
 const actionMode = ref<FailureActionMode>('review')
-const failureActionStatusMap: Record<Exclude<FailureActionMode, 'assign' | 'acknowledge' | 'remind' | 'manualTakeover' | 'skipAutoRemind'>, string> = {
+const failureActionStatusMap: Record<Exclude<FailureActionMode, 'assign' | 'acknowledge' | 'remind' | 'recordNotification' | 'recordNotificationReceipt' | 'manualTakeover' | 'skipAutoRemind'>, string> = {
   review: 'reviewed',
   suggestRetry: 'retry_advised',
   close: 'closed',
@@ -942,6 +999,8 @@ const actionForm = reactive({
   reason: '',
   assignedAdminId: undefined as number | undefined,
   escalationRoleCode: '',
+  notificationStatus: 'sent',
+  notificationReceiptStatus: 'delivered',
 })
 
 const filters = reactive<AdminAiResumeHistoryQuery>({
@@ -1044,6 +1103,12 @@ const actionDialogTitle = computed(() => {
   if (actionMode.value === 'remind') {
     return '人工催办失败样本'
   }
+  if (actionMode.value === 'recordNotification') {
+    return '记录通知结果'
+  }
+  if (actionMode.value === 'recordNotificationReceipt') {
+    return '记录通知回执'
+  }
   if (actionMode.value === 'manualTakeover') {
     return '手工接管失败样本'
   }
@@ -1073,6 +1138,12 @@ const actionConfirmText = computed(() => {
   }
   if (actionMode.value === 'remind') {
     return '确认催办'
+  }
+  if (actionMode.value === 'recordNotification') {
+    return '确认通知结果'
+  }
+  if (actionMode.value === 'recordNotificationReceipt') {
+    return '确认回执结果'
   }
   if (actionMode.value === 'manualTakeover') {
     return '确认接管'
@@ -1104,6 +1175,12 @@ const actionPlaceholder = computed(() => {
   if (actionMode.value === 'remind') {
     return '请输入催办原因、催办对象感知或后续跟进要求'
   }
+  if (actionMode.value === 'recordNotification') {
+    return '请输入通知渠道、发送说明或失败原因'
+  }
+  if (actionMode.value === 'recordNotificationReceipt') {
+    return '请输入送达说明、回执来源或失败原因'
+  }
   if (actionMode.value === 'manualTakeover') {
     return '请输入接管原因、接管背景或后续处置计划'
   }
@@ -1134,7 +1211,9 @@ const actionMeta = computed(() => [
   { label: 'SLA 状态', value: getFailureSlaTag(currentFailure.value?.slaStatus).label },
   { label: '签收 SLA', value: formatDateTime(currentFailure.value?.claimDeadlineAt) },
   { label: '最近通知', value: formatDateTime(currentFailure.value?.notificationSentAt) },
+  { label: '通知异常', value: currentFailure.value?.notificationFailureReason || '--' },
   { label: '最近回执', value: formatDateTime(currentFailure.value?.notificationReceiptAt) },
+  { label: '回执异常', value: currentFailure.value?.notificationReceiptFailureReason || '--' },
   { label: '手工接管', value: formatFailureManualTakeoverValue(currentFailure.value) },
   { label: '跳过催办', value: formatFailureSkipAutoRemindValue(currentFailure.value) },
   { label: '最近催办', value: formatFailureReminderValue(currentFailure.value) },
@@ -1172,7 +1251,9 @@ const failureDetailBlocks = computed(() => {
     { label: '催办阶段', value: getFailureAutoRemindTag(failureDetail.value.autoRemindStage).label },
     { label: 'SLA 状态', value: getFailureSlaTag(failureDetail.value.slaStatus).label },
     { label: '最近通知', value: formatDateTime(failureDetail.value.notificationSentAt) },
+    { label: '通知异常', value: failureDetail.value.notificationFailureReason || '--' },
     { label: '最近回执', value: formatDateTime(failureDetail.value.notificationReceiptAt) },
+    { label: '回执异常', value: failureDetail.value.notificationReceiptFailureReason || '--' },
     { label: '手工接管', value: formatFailureManualTakeoverValue(failureDetail.value) },
     { label: '跳过催办', value: formatFailureSkipAutoRemindValue(failureDetail.value) },
     { label: '签收时间', value: formatDateTime(failureDetail.value.assignmentAcknowledgedAt) },
@@ -1265,6 +1346,9 @@ function getFailureCollaborationTag(status?: string | null) {
 }
 
 function getFailureNotificationTag(status?: string | null) {
+  if (status === 'send_failed') {
+    return { label: '发送失败', tone: 'danger' as const }
+  }
   if (status === 'resent') {
     return { label: '已补发', tone: 'warning' as const }
   }
@@ -1278,6 +1362,12 @@ function getFailureNotificationTag(status?: string | null) {
 }
 
 function getFailureReceiptTag(status?: string | null) {
+  if (status === 'delivered') {
+    return { label: '已送达', tone: 'success' as const }
+  }
+  if (status === 'receipt_failed') {
+    return { label: '回执失败', tone: 'danger' as const }
+  }
   if (status === 'received') {
     return { label: '已回执', tone: 'success' as const }
   }
@@ -1341,6 +1431,12 @@ function getFailureActionTag(actionType?: string | null, handlingStatus?: string
   if (actionType === 'remind') {
     return { label: '已催办', tone: 'warning' as const }
   }
+  if (actionType === 'record_notification') {
+    return { label: '记录通知', tone: 'info' as const }
+  }
+  if (actionType === 'record_notification_receipt') {
+    return { label: '记录回执', tone: 'success' as const }
+  }
   if (actionType === 'manual_takeover') {
     return { label: '手工接管', tone: 'success' as const }
   }
@@ -1365,6 +1461,12 @@ function getGovernanceOperationLabel(operationCode?: string | null) {
   }
   if (operationCode === 'ai_resume_remind') {
     return '人工催办'
+  }
+  if (operationCode === 'ai_resume_record_notification') {
+    return '记录通知'
+  }
+  if (operationCode === 'ai_resume_record_notification_receipt') {
+    return '记录回执'
   }
   if (operationCode === 'ai_resume_manual_takeover') {
     return '手工接管'
@@ -1409,6 +1511,14 @@ function formatFailureTimelineMeta(note: NonNullable<AdminAiResumeFailureItem['h
   if (note.assignmentAcknowledgedAt) {
     parts.push(`签收：${formatDateTime(note.assignmentAcknowledgedAt)}`)
   }
+  if (note.notificationSentAt || note.notificationFailureReason) {
+    const notificationMeta = note.notificationSentAt ? formatDateTime(note.notificationSentAt) : '失败'
+    parts.push(`通知：${notificationMeta}${note.notificationFailureReason ? ` / ${note.notificationFailureReason}` : ''}`)
+  }
+  if (note.notificationReceiptAt || note.notificationReceiptFailureReason) {
+    const receiptMeta = note.notificationReceiptAt ? formatDateTime(note.notificationReceiptAt) : '失败'
+    parts.push(`回执：${receiptMeta}${note.notificationReceiptFailureReason ? ` / ${note.notificationReceiptFailureReason}` : ''}`)
+  }
   if (note.lastRemindedAt) {
     const reminderOperator = note.lastRemindedByAdminName || note.lastRemindedByAdminId || '--'
     parts.push(`催办：${formatDateTime(note.lastRemindedAt)} / ${reminderOperator} / ${note.reminderCount ?? 0} 次`)
@@ -1436,6 +1546,12 @@ function formatAssignmentAckStatus(row: AdminAiResumeFailureItem) {
 function formatFailureNotification(row: AdminAiResumeFailureItem) {
   const sentAt = row.notificationSentAt ? formatDateTime(row.notificationSentAt) : ''
   const receiptAt = row.notificationReceiptAt ? formatDateTime(row.notificationReceiptAt) : ''
+  if (row.notificationFailureReason) {
+    return `通知失败 · ${row.notificationFailureReason}`
+  }
+  if (row.notificationReceiptFailureReason) {
+    return `回执失败 · ${row.notificationReceiptFailureReason}`
+  }
   if (sentAt && receiptAt) {
     return `通知 ${sentAt} · 回执 ${receiptAt}`
   }
@@ -1527,6 +1643,18 @@ function canPerformFailureAction(mode: FailureActionMode, row: AdminAiResumeFail
   if (mode === 'remind') {
     return !isFailureTerminal(currentStatus)
       && Boolean(row.assignedAdminId)
+      && !row.assignmentAcknowledgedAt
+  }
+  if (mode === 'recordNotification') {
+    return !isFailureTerminal(currentStatus)
+      && Boolean(row.assignedAdminId)
+      && !row.assignmentAcknowledgedAt
+  }
+  if (mode === 'recordNotificationReceipt') {
+    return !isFailureTerminal(currentStatus)
+      && Boolean(row.assignedAdminId)
+      && row.notificationStatus !== 'pending_send'
+      && row.notificationStatus !== 'send_failed'
       && !row.assignmentAcknowledgedAt
   }
   if (mode === 'manualTakeover') {
@@ -1650,6 +1778,8 @@ function openFailureAction(mode: FailureActionMode, row: AdminAiResumeFailureIte
   resetActionForm()
   actionForm.assignedAdminId = row.assignedAdminId ?? undefined
   actionForm.escalationRoleCode = row.escalationRoleCode || ''
+  actionForm.notificationStatus = 'sent'
+  actionForm.notificationReceiptStatus = 'delivered'
   actionVisible.value = true
 }
 
@@ -1657,6 +1787,8 @@ function resetActionForm() {
   actionForm.reason = ''
   actionForm.assignedAdminId = undefined
   actionForm.escalationRoleCode = ''
+  actionForm.notificationStatus = 'sent'
+  actionForm.notificationReceiptStatus = 'delivered'
 }
 
 function closeFailureActionDialog() {
@@ -1712,6 +1844,18 @@ async function submitFailureAction() {
     } else if (actionMode.value === 'remind') {
       await remindAdminAiResumeFailure(currentFailure.value.failureId, { reason })
       ElMessage.success('失败样本已人工催办')
+    } else if (actionMode.value === 'recordNotification') {
+      await recordNotificationAdminAiResumeFailure(currentFailure.value.failureId, {
+        reason,
+        notificationStatus: actionForm.notificationStatus,
+      })
+      ElMessage.success('失败样本通知结果已记录')
+    } else if (actionMode.value === 'recordNotificationReceipt') {
+      await recordNotificationReceiptAdminAiResumeFailure(currentFailure.value.failureId, {
+        reason,
+        notificationReceiptStatus: actionForm.notificationReceiptStatus,
+      })
+      ElMessage.success('失败样本通知回执已记录')
     } else if (actionMode.value === 'manualTakeover') {
       await manualTakeoverAdminAiResumeFailure(currentFailure.value.failureId, { reason })
       ElMessage.success('失败样本已手工接管')
