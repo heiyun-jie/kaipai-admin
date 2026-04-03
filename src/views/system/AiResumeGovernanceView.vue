@@ -549,10 +549,12 @@
               <el-option label="分派处理人" value="ai_resume_assign" />
               <el-option label="确认接手" value="ai_resume_acknowledge" />
               <el-option label="人工催办" value="ai_resume_remind" />
+              <el-option label="自动催办" value="ai_resume_auto_remind" />
               <el-option label="记录通知" value="ai_resume_record_notification" />
               <el-option label="记录回执" value="ai_resume_record_notification_receipt" />
               <el-option label="手工接管" value="ai_resume_manual_takeover" />
               <el-option label="跳过催办" value="ai_resume_skip_auto_remind" />
+              <el-option label="超时升级" value="ai_resume_timeout_escalation" />
               <el-option label="升级处理" value="ai_resume_escalate" />
               <el-option label="忽略" value="ai_resume_ignore" />
               <el-option label="关闭归档" value="ai_resume_close" />
@@ -1431,6 +1433,9 @@ function getFailureActionTag(actionType?: string | null, handlingStatus?: string
   if (actionType === 'remind') {
     return { label: '已催办', tone: 'warning' as const }
   }
+  if (actionType === 'auto_remind') {
+    return { label: '自动催办', tone: 'warning' as const }
+  }
   if (actionType === 'record_notification') {
     return { label: '记录通知', tone: 'info' as const }
   }
@@ -1442,6 +1447,9 @@ function getFailureActionTag(actionType?: string | null, handlingStatus?: string
   }
   if (actionType === 'skip_auto_remind') {
     return { label: '跳过催办', tone: 'info' as const }
+  }
+  if (actionType === 'timeout_escalation') {
+    return { label: '超时升级', tone: 'danger' as const }
   }
   return getFailureHandlingTag(handlingStatus)
 }
@@ -1462,6 +1470,9 @@ function getGovernanceOperationLabel(operationCode?: string | null) {
   if (operationCode === 'ai_resume_remind') {
     return '人工催办'
   }
+  if (operationCode === 'ai_resume_auto_remind') {
+    return '自动催办'
+  }
   if (operationCode === 'ai_resume_record_notification') {
     return '记录通知'
   }
@@ -1473,6 +1484,9 @@ function getGovernanceOperationLabel(operationCode?: string | null) {
   }
   if (operationCode === 'ai_resume_skip_auto_remind') {
     return '跳过催办'
+  }
+  if (operationCode === 'ai_resume_timeout_escalation') {
+    return '超时升级'
   }
   if (operationCode === 'ai_resume_escalate') {
     return '升级处理'
