@@ -1,8 +1,5 @@
 <template>
-  <PageContainer
-    title="角色管理"
-    description="维护后台角色与权限范围，支持新建、编辑、启停用和复制角色。"
-  >
+  <PageContainer>
     <template #actions>
       <PermissionButton action="action.system.role.create" type="primary" @click="openCreateDialog">
         新建角色

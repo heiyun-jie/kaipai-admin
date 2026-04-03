@@ -1,10 +1,14 @@
 <template>
-  <PageContainer
-    title="邀请资格"
-    eyebrow="Referral Eligibility"
-    description="管理邀请资格发放、延期与撤销，核对资格来源和邀请记录是否保持同一事实链。"
-  >
-    <FilterPanel description="按用户、资格码、资格类型和来源筛选资格记录，手工发放动作要求填写明确来源。">
+  <PageContainer>
+    <template #actions>
+      <PermissionButton action="action.referral.eligibility.grant" type="primary" @click="openAction('grant')">
+        手工发放
+      </PermissionButton>
+    </template>
+
+    <ReferralGovernanceNav />
+    <GovernanceOverviewCards :cards="overviewCards" />
+    <FilterPanel description="按用户、资格码、资格类型和来源筛选资格记录，手工发放动作要求明确治理来源。">
       <el-form :model="filters" inline>
         <el-form-item label="用户 ID">
           <el-input v-model.number="filters.userId" placeholder="用户 ID" clearable />
@@ -28,15 +32,40 @@
         <el-form-item label="来源">
           <el-input v-model="filters.sourceType" placeholder="manual / policy / payment" clearable />
         </el-form-item>
+        <el-form-item label="生效时间">
+          <el-date-picker
+            v-model="effectiveRange"
+            type="datetimerange"
+            unlink-panels
+            range-separator="至"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            style="width: 360px"
+          />
+        </el-form-item>
       </el-form>
       <template #actions>
-        <PermissionButton action="action.referral.eligibility.grant" type="primary" @click="openAction('grant')">
-          手工发放
-        </PermissionButton>
         <el-button @click="resetFilters">重置</el-button>
         <el-button type="primary" @click="loadList">查询</el-button>
       </template>
     </FilterPanel>
+
+    <el-alert
+      v-if="dashboardContextSource"
+      type="info"
+      show-icon
+      :closable="false"
+      class="context-alert"
+    >
+      <template #title>{{ dashboardContextTitle }}</template>
+      <template #default>
+        <div class="context-alert__content">
+          <span>{{ dashboardContextSummary }}</span>
+          <el-button link type="primary" @click="clearDashboardContext">清空上下文</el-button>
+        </div>
+      </template>
+    </el-alert>
 
     <el-card class="table-card" shadow="never">
       <el-table :data="rows" v-loading="loading">
@@ -217,7 +246,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   extendReferralEligibility,
@@ -227,10 +257,18 @@ import {
   revokeReferralEligibility,
 } from '@/api/referral'
 import FilterPanel from '@/components/business/FilterPanel.vue'
+import GovernanceOverviewCards from '@/components/business/GovernanceOverviewCards.vue'
 import PageContainer from '@/components/business/PageContainer.vue'
 import PermissionButton from '@/components/business/PermissionButton.vue'
+import ReferralGovernanceNav from '@/components/business/ReferralGovernanceNav.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import { entitlementStatusMap } from '@/constants/status'
+import {
+  getDashboardContextFallbackSummary,
+  getDashboardContextTitle,
+  readRouteQueryString,
+  resolveDashboardRouteSource,
+} from '@/utils/dashboard-context'
 import type {
   ReferralEligibilityDetail,
   ReferralEligibilityItem,
@@ -239,10 +277,13 @@ import type {
 import { formatCurrency, formatDateTime, maskPhone } from '@/utils/format'
 
 type ActionMode = 'grant' | 'extend' | 'revoke'
+type DateRangeValue = [string, string] | []
 
 const fallbackStatusTag = { label: '未知', tone: 'info' as const }
 
 const loading = ref(false)
+const route = useRoute()
+const router = useRouter()
 const detailLoading = ref(false)
 const submitting = ref(false)
 const rows = ref<ReferralEligibilityItem[]>([])
@@ -269,6 +310,57 @@ const filters = reactive<ReferralEligibilityQuery>({
   expireTo: undefined,
 })
 
+const overviewCards = computed(() => {
+  const activeCount = rows.value.filter((item) => item.status === 1).length
+  const inactiveCount = rows.value.filter((item) => item.status === 2 || item.status === 3).length
+  const manualCount = rows.value.filter((item) => item.sourceType === 'manual').length
+
+  return [
+    {
+      label: '查询规模',
+      badge: '当前查询',
+      tone: null,
+      value: `${total.value} 条`,
+      hint: '当前筛选条件下命中的邀请资格总数。',
+    },
+    {
+      label: '当前页生效中',
+      badge: '生效中',
+      tone: 'success' as const,
+      value: `${activeCount} 条`,
+      hint: '当前页样本中仍处于生效状态的邀请资格。',
+    },
+    {
+      label: '当前页已失效',
+      badge: '状态',
+      tone: 'warning' as const,
+      value: `${inactiveCount} 条`,
+      hint: '当前页样本中已过期或已撤销的邀请资格。',
+    },
+    {
+      label: '当前页手工来源',
+      badge: '治理动作',
+      tone: 'info' as const,
+      value: `${manualCount} 条`,
+      hint: '当前页样本中由后台手工发放的邀请资格。',
+    },
+  ]
+})
+
+const effectiveRange = computed<DateRangeValue>({
+  get: (): DateRangeValue =>
+    filters.effectiveFrom && filters.effectiveTo ? [filters.effectiveFrom, filters.effectiveTo] as [string, string] : [],
+  set: (value: DateRangeValue) => {
+    if (Array.isArray(value) && value.length === 2) {
+      filters.effectiveFrom = value[0]
+      filters.effectiveTo = value[1]
+      return
+    }
+    filters.effectiveFrom = undefined
+    filters.effectiveTo = undefined
+  },
+})
+
 const form = reactive({
   grantId: undefined as number | undefined,
   userId: undefined as number | undefined,
@@ -289,6 +381,15 @@ const actionDialogTitle = computed(() => {
     return '撤销邀请资格'
   }
   return '手工发放邀请资格'
+})
+const dashboardContextSource = computed(() => resolveDashboardRouteSource(route.query.source))
+const dashboardContextTitle = computed(() => getDashboardContextTitle(dashboardContextSource.value))
+const dashboardContextSummary = computed(() => {
+  const parts: string[] = []
+  if (filters.effectiveFrom && filters.effectiveTo) {
+    parts.push(`生效时间 ${formatDateTime(filters.effectiveFrom)} 至 ${formatDateTime(filters.effectiveTo)}`)
+  }
+  return parts.join('；') || getDashboardContextFallbackSummary(dashboardContextSource.value)
 })
 
 const grantBlocks = computed(() => {
@@ -353,6 +454,15 @@ const orderBlocks = computed(() => {
     { label: '支付时间', value: formatDateTime(order?.paidAt) },
   ]
 })
+
+function applyRouteFilters() {
+  filters.effectiveFrom = readRouteQueryString(route.query.effectiveFrom)
+  filters.effectiveTo = readRouteQueryString(route.query.effectiveTo)
+}
+
+function clearDashboardContext() {
+  router.replace({ path: route.path })
+}
 
 function formatRealAuthStatus(status?: number | null) {
   if (status === 2) {
@@ -488,7 +598,14 @@ function resetFilters() {
   loadList()
 }
 
-onMounted(loadList)
+watch(
+  () => route.fullPath,
+  () => {
+    applyRouteFilters()
+    loadList()
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped lang="scss">
@@ -496,6 +613,17 @@ onMounted(loadList)
 .detail-card {
   border: 1px solid var(--kp-border);
   background: var(--kp-surface);
+}
+
+.context-alert {
+  margin-bottom: 16px;
+}
+
+.context-alert__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .stack-cell {
@@ -563,6 +691,11 @@ onMounted(loadList)
   .detail-split,
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .context-alert__content {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>

@@ -1,8 +1,5 @@
 <template>
-  <PageContainer
-    title="操作日志"
-    description="回看后台操作记录，便于追踪关键动作、结果与责任人。"
-  >
+  <PageContainer>
     <FilterPanel description="按操作人、模块、结果和目标信息筛选后台操作记录。">
       <el-form :model="filters" inline>
         <el-form-item label="后台账号 ID">

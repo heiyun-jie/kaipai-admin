@@ -1,15 +1,12 @@
 <template>
-  <PageContainer
-    title="工作台"
-    description="集中查看今日待办、风险项与近期处理记录，方便运营快速切换工作。"
-  >
+  <PageContainer>
     <section class="dashboard-hero">
       <div class="dashboard-hero__copy">
         <p class="dashboard-hero__eyebrow">TODAY FOCUS</p>
         <h2>{{ heroTitle }}</h2>
         <p class="dashboard-hero__description">{{ heroDescription }}</p>
         <div class="dashboard-hero__meta">
-          <span>优先聚焦实名认证、邀请异常和退款三类待办</span>
+          <span>优先聚焦实名认证、邀请治理和退款三类待办</span>
           <span>最近事项支持继续回看和接续处理</span>
         </div>
       </div>
@@ -19,6 +16,59 @@
           刷新工作台
         </el-button>
       </div>
+    </section>
+
+    <FilterPanel
+      title="工作台筛查"
+      description="时间窗口会同时影响上方统计和最近事项；业务线筛查当前只影响最近事项列表，不会收窄统计卡。"
+    >
+      <el-form :model="filters" inline>
+        <el-form-item label="时间窗口">
+          <el-date-picker
+            v-model="dateRange"
+            type="datetimerange"
+            unlink-panels
+            range-separator="至"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            style="width: 360px"
+          />
+        </el-form-item>
+        <el-form-item label="最近事项业务线">
+          <el-select v-model="filters.bizLine" clearable placeholder="全部业务线" style="width: 180px">
+            <el-option label="实名认证" value="verify" />
+            <el-option label="邀请治理" value="referral" />
+            <el-option label="退款" value="refund" />
+            <el-option label="支付" value="payment" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #actions>
+        <el-button @click="resetFilters">重置</el-button>
+        <el-button type="primary" @click="loadOverview">查询</el-button>
+      </template>
+    </FilterPanel>
+
+    <section class="dashboard-scope">
+      <article class="dashboard-scope__card" shadow="never">
+        <p class="dashboard-scope__eyebrow">SUMMARY SCOPE</p>
+        <h3>统计范围</h3>
+        <p class="dashboard-scope__description">{{ summaryScopeDescription }}</p>
+        <div class="dashboard-scope__chips">
+          <span class="dashboard-scope__chip">{{ summaryDateChip }}</span>
+          <span class="dashboard-scope__chip dashboard-scope__chip--muted">业务线筛查不影响统计卡</span>
+        </div>
+      </article>
+      <article class="dashboard-scope__card dashboard-scope__card--accent" shadow="never">
+        <p class="dashboard-scope__eyebrow">RECENT ITEMS SCOPE</p>
+        <h3>最近事项范围</h3>
+        <p class="dashboard-scope__description">{{ recentScopeDescription }}</p>
+        <div class="dashboard-scope__chips">
+          <span class="dashboard-scope__chip">{{ recentDateChip }}</span>
+          <span class="dashboard-scope__chip">{{ recentBizLineChip }}</span>
+        </div>
+      </article>
     </section>
 
     <section class="dashboard-grid">
@@ -48,6 +98,17 @@
           <StatusTag :label="module.status" :tone="module.tone" />
         </div>
         <p class="dashboard-module__copy">{{ module.copy }}</p>
+        <div v-if="module.quickLinks?.length" class="dashboard-module__quick-links">
+          <el-button
+            v-for="link in module.quickLinks"
+            :key="link.label"
+            plain
+            class="dashboard-module__quick-link"
+            @click="openDashboardRoute(link.route)"
+          >
+            {{ link.label }}
+          </el-button>
+        </div>
         <div class="dashboard-module__footer">
           <div class="dashboard-module__summary">
             <span>{{ module.summaryLabel }}</span>
@@ -58,7 +119,7 @@
             :plain="!module.emphasis"
             class="dashboard-module__action"
             :disabled="!module.route"
-            @click="module.route && router.push(module.route)"
+            @click="module.route && openDashboardRoute(module.route)"
           >
             {{ module.action }}
           </el-button>
@@ -71,7 +132,7 @@
         <div class="recent-card__header">
           <div>
             <h3>最近事项</h3>
-            <p>展示最近 10 条待处理或刚更新的运营事项，便于回看和继续跟进。</p>
+            <p>{{ recentTableDescription }}</p>
           </div>
         </div>
       </template>
@@ -82,7 +143,9 @@
             <StatusTag :label="dashboardBizLineMap[row.bizLine] || row.bizLine" :tone="getBizTone(row.bizLine)" />
           </template>
         </el-table-column>
-        <el-table-column prop="title" label="事项标题" min-width="180" />
+        <el-table-column label="事项标题" min-width="180">
+          <template #default="{ row }">{{ getRecentItemTitle(row) }}</template>
+        </el-table-column>
         <el-table-column label="引用编号" min-width="150">
           <template #default="{ row }">{{ row.referenceNo || '--' }}</template>
         </el-table-column>
@@ -105,7 +168,7 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-else description="当前没有最近事项" />
+      <el-empty v-else :description="recentEmptyDescription" />
     </el-card>
   </PageContainer>
 </template>
@@ -113,14 +176,17 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import FilterPanel from '@/components/business/FilterPanel.vue'
 import PageContainer from '@/components/business/PageContainer.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import { fetchDashboardOverview } from '@/api/dashboard'
 import { dashboardBizLineMap, referralStatusMap, verifyStatusMap } from '@/constants/status'
-import type { DashboardOverview, DashboardRecentItem } from '@/types/dashboard'
+import type { DashboardOverview, DashboardOverviewQuery, DashboardRecentItem } from '@/types/dashboard'
+import { shouldCarryDashboardSource } from '@/utils/dashboard-context'
 import { formatDateTime } from '@/utils/format'
 
 type StatusTone = 'info' | 'warning' | 'success' | 'danger'
+type DateRangeValue = [string, string] | []
 
 const router = useRouter()
 const loading = ref(false)
@@ -130,6 +196,30 @@ const overview = reactive<DashboardOverview>({
   refundPendingCount: null,
   todayPaymentOrderCount: null,
   recentItems: [],
+})
+const filters = reactive<DashboardOverviewQuery>({
+  dateFrom: undefined,
+  dateTo: undefined,
+  bizLine: undefined,
+})
+const dashboardBizLineLabelMap: Record<string, string> = {
+  verify: '实名认证',
+  referral: '邀请治理',
+  refund: '退款',
+  payment: '支付',
+}
+
+const dateRange = computed<DateRangeValue>({
+  get: (): DateRangeValue => (filters.dateFrom && filters.dateTo ? [filters.dateFrom, filters.dateTo] as [string, string] : []),
+  set: (value: DateRangeValue) => {
+    if (Array.isArray(value) && value.length === 2) {
+      filters.dateFrom = value[0]
+      filters.dateTo = value[1]
+      return
+    }
+    filters.dateFrom = undefined
+    filters.dateTo = undefined
+  },
 })
 
 const pendingTaskCount = computed(
@@ -154,6 +244,63 @@ const heroStatus = computed(() => ({
   tone: (pendingTaskCount.value ? 'warning' : 'success') as StatusTone,
 }))
 
+const activeDateWindowLabel = computed(() => {
+  if (filters.dateFrom && filters.dateTo) {
+    return `${formatDateTime(filters.dateFrom)} 至 ${formatDateTime(filters.dateTo)}`
+  }
+  return '未额外收窄时间窗口'
+})
+
+const activeBizLineLabel = computed(() => {
+  if (!filters.bizLine) {
+    return '全部业务线'
+  }
+  return dashboardBizLineLabelMap[filters.bizLine] || filters.bizLine
+})
+
+const summaryDateChip = computed(() =>
+  filters.dateFrom && filters.dateTo ? `时间窗口：${activeDateWindowLabel.value}` : '时间窗口：按系统默认口径',
+)
+
+const recentDateChip = computed(() =>
+  filters.dateFrom && filters.dateTo ? `时间窗口：${activeDateWindowLabel.value}` : '时间窗口：按系统默认口径',
+)
+
+const recentBizLineChip = computed(() => `业务线：${activeBizLineLabel.value}`)
+
+const summaryScopeDescription = computed(() =>
+  filters.dateFrom && filters.dateTo
+    ? `统计卡已按当前时间窗口收窄，展示 ${activeDateWindowLabel.value} 内的概览数据。`
+    : '统计卡当前按系统默认口径展示，未额外收窄时间窗口。',
+)
+const hasCustomDateWindow = computed(() => Boolean(filters.dateFrom && filters.dateTo))
+
+const recentScopeDescription = computed(() => {
+  const datePart =
+    filters.dateFrom && filters.dateTo
+      ? `最近事项已按 ${activeDateWindowLabel.value} 收窄。`
+      : '最近事项当前按系统默认口径展示。'
+  const bizPart = filters.bizLine
+    ? `当前只展示 ${activeBizLineLabel.value} 业务线。`
+    : '当前展示全部业务线。'
+  return `${datePart}${bizPart}`
+})
+
+const recentTableDescription = computed(() => `${recentScopeDescription.value} 便于回看最近 10 条待处理或刚更新的事项。`)
+
+const recentEmptyDescription = computed(() => {
+  if (filters.bizLine && filters.dateFrom && filters.dateTo) {
+    return `当前时间窗口下，${activeBizLineLabel.value}业务线没有最近事项`
+  }
+  if (filters.bizLine) {
+    return `当前筛查条件下，${activeBizLineLabel.value}业务线没有最近事项`
+  }
+  if (filters.dateFrom && filters.dateTo) {
+    return '当前时间窗口下没有最近事项'
+  }
+  return '当前没有最近事项'
+})
+
 const cards = computed(() => [
   {
     label: '待审核实名认证',
@@ -177,9 +324,9 @@ const cards = computed(() => [
     tone: 'warning' as const,
   },
   {
-    label: '今日支付订单',
+    label: hasCustomDateWindow.value ? '时间窗口支付订单' : '今日支付订单',
     value: formatMetric(overview.todayPaymentOrderCount),
-    hint: '按今日业务数据统计的支付订单数量',
+    hint: hasCustomDateWindow.value ? '按当前时间窗口统计的支付订单数量' : '按今日业务数据统计的支付订单数量',
     badge: '观察',
     tone: 'success' as const,
   },
@@ -200,15 +347,21 @@ const modules = computed(() => [
   },
   {
     eyebrow: 'REFERRAL',
-    title: '异常邀请审核',
+    title: '邀请治理',
     status: overview.referralRiskPendingCount ? '待处理' : '运行中',
     tone: overview.referralRiskPendingCount ? ('warning' as const) : ('success' as const),
-    copy: '跟进异常邀请记录，完成复核、作废或处理结果确认。',
-    summaryLabel: '待处理事项',
+    copy: '统一进入异常邀请、邀请记录、邀请资格和邀请规则，先处理风险积压，再回看事实链与治理配置。',
+    summaryLabel: '风险待处理',
     summaryValue: formatPendingSummary(overview.referralRiskPendingCount, '当前无积压'),
-    action: '进入异常邀请',
+    action: '进入风险审核',
     route: '/referral/risk',
     emphasis: Boolean(overview.referralRiskPendingCount),
+    quickLinks: [
+      { label: '异常邀请', route: '/referral/risk' },
+      { label: '邀请记录', route: '/referral/records' },
+      { label: '邀请资格', route: '/referral/eligibility' },
+      { label: '邀请规则', route: '/referral/policies' },
+    ],
   },
   {
     eyebrow: 'MEMBERSHIP',
@@ -281,27 +434,122 @@ function getRecentStatus(item: DashboardRecentItem) {
   return { label: `状态 ${item.status ?? '--'}`, tone: 'info' as StatusTone }
 }
 
+function getRecentItemTitle(item: DashboardRecentItem) {
+  if (item.itemType !== 'payment_order') {
+    return item.title
+  }
+  return hasCustomDateWindow.value ? '支付订单记录' : '今日支付订单'
+}
+
 function getRecentRoute(item: DashboardRecentItem) {
+  if (item.itemType === 'identity_verification') {
+    return '/verify/pending'
+  }
+  if (item.itemType === 'referral_risk') {
+    return '/referral/risk'
+  }
+  if (item.itemType === 'refund_order') {
+    return '/refund/orders'
+  }
+  if (item.itemType === 'payment_order') {
+    return '/payment/orders'
+  }
+
   if (item.bizLine === 'verify') {
     return '/verify/pending'
   }
   if (item.bizLine === 'referral') {
     return '/referral/risk'
   }
+  if (item.bizLine === 'refund') {
+    return '/refund/orders'
+  }
+  if (item.bizLine === 'payment') {
+    return '/payment/orders'
+  }
   return ''
+}
+
+function buildRouteQuery(path: string, item?: DashboardRecentItem) {
+  const query: Record<string, string | number> = {}
+
+  if (filters.dateFrom && filters.dateTo) {
+    if (path === '/referral/risk') {
+      query.registeredAtFrom = filters.dateFrom
+      query.registeredAtTo = filters.dateTo
+    }
+    if (path === '/referral/records') {
+      query.registeredAtFrom = filters.dateFrom
+      query.registeredAtTo = filters.dateTo
+    }
+    if (path === '/referral/eligibility') {
+      query.effectiveFrom = filters.dateFrom
+      query.effectiveTo = filters.dateTo
+    }
+    if (path === '/verify/pending') {
+      query.submitTimeFrom = filters.dateFrom
+      query.submitTimeTo = filters.dateTo
+    }
+    if (path === '/refund/orders' || path === '/payment/orders') {
+      query.createdAtFrom = filters.dateFrom
+      query.createdAtTo = filters.dateTo
+    }
+  }
+
+  if (item?.itemType === 'identity_verification' && item.userId != null) {
+    query.userId = item.userId
+  }
+  if (item?.itemType === 'referral_risk') {
+    if (item.referenceNo) {
+      query.inviteCode = item.referenceNo
+    }
+    if (item.userId != null) {
+      query.inviteeUserId = item.userId
+    }
+  }
+  if (item?.itemType === 'refund_order') {
+    if (item.referenceNo) {
+      query.refundNo = item.referenceNo
+    }
+    if (item.userId != null) {
+      query.userId = item.userId
+    }
+  }
+  if (item?.itemType === 'payment_order') {
+    if (item.referenceNo) {
+      query.orderNo = item.referenceNo
+    }
+    if (item.userId != null) {
+      query.userId = item.userId
+    }
+  }
+  if (item) {
+    query.source = 'dashboard_recent_item'
+  } else if (shouldCarryDashboardSource(path)) {
+    query.source = 'dashboard_scope'
+  }
+
+  return Object.keys(query).length ? query : undefined
+}
+
+function openDashboardRoute(path: string, item?: DashboardRecentItem) {
+  router.push({
+    path,
+    query: buildRouteQuery(path, item),
+  })
 }
 
 function openRecentItem(item: DashboardRecentItem) {
   const route = getRecentRoute(item)
   if (route) {
-    router.push(route)
+    openDashboardRoute(route, item)
   }
 }
 
 async function loadOverview() {
   loading.value = true
   try {
-    const data = await fetchDashboardOverview()
+    const data = await fetchDashboardOverview(buildOverviewQuery())
     overview.verifyPendingCount = data.verifyPendingCount
     overview.referralRiskPendingCount = data.referralRiskPendingCount
     overview.refundPendingCount = data.refundPendingCount
@@ -310,6 +558,21 @@ async function loadOverview() {
   } finally {
     loading.value = false
   }
+}
+
+function buildOverviewQuery(): DashboardOverviewQuery {
+  return {
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+    bizLine: filters.bizLine,
+  }
+}
+
+function resetFilters() {
+  filters.dateFrom = undefined
+  filters.dateTo = undefined
+  filters.bizLine = undefined
+  loadOverview()
 }
 
 onMounted(loadOverview)
@@ -388,6 +651,72 @@ onMounted(loadOverview)
   display: grid;
   gap: 18px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dashboard-scope {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dashboard-scope__card {
+  padding: 22px 24px;
+  border: 1px solid rgba(80, 63, 47, 0.1);
+  border-radius: 26px;
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.92), rgba(250, 244, 236, 0.9)),
+    rgba(255, 251, 245, 0.9);
+  box-shadow: 0 14px 28px rgba(63, 42, 20, 0.06);
+}
+
+.dashboard-scope__card--accent {
+  border-color: rgba(196, 122, 40, 0.18);
+  background:
+    radial-gradient(circle at top right, rgba(196, 122, 40, 0.12), transparent 28%),
+    linear-gradient(140deg, rgba(255, 252, 248, 0.95), rgba(250, 243, 234, 0.92));
+}
+
+.dashboard-scope__eyebrow {
+  margin: 0 0 8px;
+  color: var(--kp-accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.dashboard-scope__card h3 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.dashboard-scope__description {
+  margin: 14px 0 0;
+  color: var(--kp-text-secondary);
+  line-height: 1.75;
+}
+
+.dashboard-scope__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.dashboard-scope__chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--kp-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-scope__chip--muted {
+  background: rgba(80, 63, 47, 0.08);
+  color: var(--kp-text-secondary);
 }
 
 .dashboard-grid--modules {
@@ -503,6 +832,23 @@ onMounted(loadOverview)
   line-height: 1.7;
 }
 
+.dashboard-module__quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.dashboard-module__quick-link {
+  min-height: 36px;
+  padding-inline: 14px;
+  border-radius: 999px;
+  border-color: rgba(80, 63, 47, 0.12);
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--kp-text);
+  font-weight: 700;
+}
+
 .dashboard-module__footer {
   display: flex;
   justify-content: space-between;
@@ -547,6 +893,7 @@ onMounted(loadOverview)
 
 @media (max-width: 1100px) {
   .dashboard-grid,
+  .dashboard-scope,
   .dashboard-grid--modules {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -562,6 +909,7 @@ onMounted(loadOverview)
 
 @media (max-width: 760px) {
   .dashboard-grid,
+  .dashboard-scope,
   .dashboard-grid--modules {
     grid-template-columns: 1fr;
   }
@@ -572,6 +920,10 @@ onMounted(loadOverview)
 
   .dashboard-module__footer {
     display: grid;
+  }
+
+  .dashboard-module__quick-link {
+    width: 100%;
   }
 
   .dashboard-module__action {

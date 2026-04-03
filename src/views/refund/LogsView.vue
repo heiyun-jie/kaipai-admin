@@ -1,8 +1,5 @@
 <template>
-  <PageContainer
-    title="退款日志"
-    description="回看退款处理记录，便于核对操作人与处理结论。"
-  >
+  <PageContainer>
     <FilterPanel description="按退款单、操作人和处理动作筛选退款日志。">
       <el-form :model="filters" inline>
         <el-form-item label="退款单 ID">

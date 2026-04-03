@@ -1,5 +1,5 @@
 <template>
-  <PageContainer title="会员产品" description="维护会员产品方案，统一管理定价、时长与权益配置。">
+  <PageContainer>
     <template #actions>
       <PermissionButton action="action.membership.product.create" type="primary" @click="dialogVisible = true">
         新建产品

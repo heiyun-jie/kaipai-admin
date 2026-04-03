@@ -1,9 +1,5 @@
 <template>
-  <PageContainer
-    title="剧组项目"
-    eyebrow="Recruit Projects"
-    description="查看剧组档案扩展字段里的项目事实，先把剧组项目、角色计数和基础联系信息拉到后台可见。"
-  >
+  <PageContainer>
     <FilterPanel description="按项目 ID、剧组用户、状态和关键词筛选，优先验证真实剧组数据是否已切到后端。">
       <el-form :model="filters" inline>
         <el-form-item label="项目 ID">

@@ -1,10 +1,9 @@
 <template>
-  <PageContainer
-    title="异常邀请审核"
-    eyebrow="Referral Risk"
-    description="集中处理异常邀请记录，支持查看详情、完成复核并确认处理结果。"
-  >
-    <FilterPanel description="默认聚焦异常中的邀请记录，可按邀请码、用户和风险原因快速筛选。">
+  <PageContainer>
+    <ReferralGovernanceNav />
+    <GovernanceOverviewCards :cards="overviewCards" />
+
+    <FilterPanel description="默认聚焦异常中的邀请记录，可按邀请码、用户和风险原因快速定位治理样本。">
       <el-form :model="filters" inline>
         <el-form-item label="邀请码">
           <el-input v-model="filters.inviteCode" placeholder="邀请码" clearable />
@@ -32,12 +31,40 @@
             <el-option label="已解除" :value="0" />
           </el-select>
         </el-form-item>
+        <el-form-item label="注册时间">
+          <el-date-picker
+            v-model="registeredRange"
+            type="datetimerange"
+            unlink-panels
+            range-separator="至"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            style="width: 360px"
+          />
+        </el-form-item>
       </el-form>
       <template #actions>
         <el-button @click="resetFilters">重置</el-button>
         <el-button type="primary" @click="loadList">查询</el-button>
       </template>
     </FilterPanel>
+
+    <el-alert
+      v-if="dashboardContextSource"
+      type="info"
+      show-icon
+      :closable="false"
+      class="context-alert"
+    >
+      <template #title>{{ dashboardContextTitle }}</template>
+      <template #default>
+        <div class="context-alert__content">
+          <span>{{ dashboardContextSummary }}</span>
+          <el-button link type="primary" @click="clearDashboardContext">清空上下文</el-button>
+        </div>
+      </template>
+    </el-alert>
 
     <el-card class="table-card" shadow="never">
       <el-table :data="rows" v-loading="loading">
@@ -251,21 +278,33 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
 import { approveReferralRisk, fetchReferralRiskDetail, fetchReferralRiskList, invalidateReferralRisk, resolveReferralRisk } from '@/api/referral'
 import FilterPanel from '@/components/business/FilterPanel.vue'
+import GovernanceOverviewCards from '@/components/business/GovernanceOverviewCards.vue'
 import PageContainer from '@/components/business/PageContainer.vue'
 import PermissionButton from '@/components/business/PermissionButton.vue'
+import ReferralGovernanceNav from '@/components/business/ReferralGovernanceNav.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import AuditConfirmDialog from '@/components/dialogs/AuditConfirmDialog.vue'
 import { referralRiskFlagMap, referralStatusMap } from '@/constants/status'
+import {
+  getDashboardContextFallbackSummary,
+  getDashboardContextTitle,
+  readRouteQueryString,
+  resolveDashboardRouteSource,
+} from '@/utils/dashboard-context'
 import type { ReferralRiskDetail, ReferralRiskItem, ReferralRiskQuery } from '@/types/referral'
 import { formatDateTime, maskPhone, maskText } from '@/utils/format'
 
 type RiskActionMode = 'approve' | 'invalidate' | 'resolve'
+type DateRangeValue = [string, string] | []
 
 const loading = ref(false)
+const route = useRoute()
+const router = useRouter()
 const detailLoading = ref(false)
 const rows = ref<ReferralRiskItem[]>([])
 const total = ref(0)
@@ -287,6 +326,49 @@ const filters = reactive<ReferralRiskQuery>({
   riskFlag: 1,
   registeredAtFrom: undefined,
   registeredAtTo: undefined,
+})
+
+const overviewCards = computed(() => {
+  const pendingCount = rows.value.filter((item) => isOperable(item.status, item.riskFlag)).length
+  const closedCount = rows.value.filter((item) => !isOperable(item.status, item.riskFlag)).length
+
+  return [
+    {
+      label: '查询规模',
+      badge: '当前查询',
+      tone: null,
+      value: `${total.value} 条`,
+      hint: '当前筛选条件下命中的异常邀请记录总数。',
+    },
+    {
+      label: '当前页待处置',
+      badge: '待处理',
+      tone: 'warning' as const,
+      value: `${pendingCount} 条`,
+      hint: '当前页样本中仍可继续通过、作废或标记完成的异常记录。',
+    },
+    {
+      label: '当前页已处理',
+      badge: '已完成',
+      tone: 'success' as const,
+      value: `${closedCount} 条`,
+      hint: '当前页样本中已脱离待处置状态的异常记录。',
+    },
+  ]
+})
+
+const registeredRange = computed<DateRangeValue>({
+  get: (): DateRangeValue =>
+    filters.registeredAtFrom && filters.registeredAtTo ? [filters.registeredAtFrom, filters.registeredAtTo] as [string, string] : [],
+  set: (value: DateRangeValue) => {
+    if (Array.isArray(value) && value.length === 2) {
+      filters.registeredAtFrom = value[0]
+      filters.registeredAtTo = value[1]
+      return
+    }
+    filters.registeredAtFrom = undefined
+    filters.registeredAtTo = undefined
+  },
 })
 
 const recordBlocks = computed(() => {
@@ -376,6 +458,21 @@ const actionMeta = computed(() => [
   { label: '邀请码', value: currentRow.value?.inviteCode },
   { label: '风险原因', value: currentRow.value?.riskReason || '--' },
 ])
+const dashboardContextSource = computed(() => resolveDashboardRouteSource(route.query.source))
+const dashboardContextTitle = computed(() => getDashboardContextTitle(dashboardContextSource.value))
+const dashboardContextSummary = computed(() => {
+  const parts: string[] = []
+  if (filters.inviteCode) {
+    parts.push(`邀请码 ${filters.inviteCode}`)
+  }
+  if (filters.inviteeUserId != null) {
+    parts.push(`被邀请人 ID ${filters.inviteeUserId}`)
+  }
+  if (filters.registeredAtFrom && filters.registeredAtTo) {
+    parts.push(`注册时间 ${formatDateTime(filters.registeredAtFrom)} 至 ${formatDateTime(filters.registeredAtTo)}`)
+  }
+  return parts.join('；') || getDashboardContextFallbackSummary(dashboardContextSource.value)
+})
 
 function joinIds(values?: number[] | null) {
   if (!values?.length) {
@@ -410,6 +507,21 @@ function getOperationLabel(operationCode?: string | null) {
 
 function isOperable(status?: number | null, riskFlag?: number | null) {
   return status === 3 && riskFlag === 1
+}
+
+function applyRouteFilters() {
+  const registeredAtFrom = readRouteQueryString(route.query.registeredAtFrom)
+  const registeredAtTo = readRouteQueryString(route.query.registeredAtTo)
+  const inviteCode = readRouteQueryString(route.query.inviteCode)
+  const inviteeUserId = readRouteQueryString(route.query.inviteeUserId)
+  filters.registeredAtFrom = registeredAtFrom
+  filters.registeredAtTo = registeredAtTo
+  filters.inviteCode = inviteCode || ''
+  filters.inviteeUserId = inviteeUserId ? Number(inviteeUserId) : undefined
+}
+
+function clearDashboardContext() {
+  router.replace({ path: route.path })
 }
 
 async function loadList() {
@@ -479,7 +591,14 @@ function resetFilters() {
   loadList()
 }
 
-onMounted(loadList)
+watch(
+  () => route.fullPath,
+  () => {
+    applyRouteFilters()
+    loadList()
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped lang="scss">
@@ -487,6 +606,17 @@ onMounted(loadList)
 .detail-card {
   border: 1px solid var(--kp-border);
   background: var(--kp-surface);
+}
+
+.context-alert {
+  margin-bottom: 18px;
+}
+
+.context-alert__content {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
 }
 
 .stack-cell {
@@ -551,6 +681,7 @@ onMounted(loadList)
 }
 
 @media (max-width: 960px) {
+  .context-alert__content,
   .detail-split,
   .detail-grid {
     grid-template-columns: 1fr;

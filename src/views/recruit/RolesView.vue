@@ -1,9 +1,5 @@
 <template>
-  <PageContainer
-    title="招募角色"
-    eyebrow="Recruit Roles"
-    description="查看真实 `recruit_post` 与项目扩展字段的组装结果，确认角色、项目和剧组的映射没有继续停留在 mock。"
-  >
+  <PageContainer>
     <FilterPanel description="按角色、剧组、项目和状态筛选，优先核对写侧创建后的真实落库结果。">
       <el-form :model="filters" inline>
         <el-form-item label="角色 ID">

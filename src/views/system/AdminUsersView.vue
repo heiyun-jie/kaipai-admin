@@ -1,8 +1,5 @@
 <template>
-  <PageContainer
-    title="后台账号"
-    description="管理后台账号、角色绑定和登录凭证，确保团队成员按职责使用后台。"
-  >
+  <PageContainer>
     <template #actions>
       <PermissionButton action="action.system.admin-user.create" type="primary" @click="openCreateDialog">
         新建后台账号

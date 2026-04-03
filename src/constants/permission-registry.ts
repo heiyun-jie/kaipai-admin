@@ -30,7 +30,7 @@ export interface PermissionTreeNode {
 const MODULE_LABELS: Record<PermissionModuleKey, string> = {
   dashboard: '工作台',
   verify: '实名认证',
-  referral: '邀请裂变',
+  referral: '邀请治理',
   recruit: '招募治理',
   membership: '会员中心',
   payment: '订单中心',

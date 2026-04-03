@@ -33,7 +33,7 @@ export const adminMenus: AdminMenuItem[] = [
   },
   {
     key: 'referral',
-    label: '邀请裂变',
+    label: '邀请治理',
     icon: 'Connection',
     menuPermission: 'menu.referral',
     children: [

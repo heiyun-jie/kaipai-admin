@@ -1,9 +1,5 @@
 <template>
-  <PageContainer
-    title="投递记录"
-    eyebrow="Recruit Applies"
-    description="把演员投递的真实状态拉到后台，先确认角色、演员和剧组三方关联已经从 mock 迁到服务端读模型。"
-  >
+  <PageContainer>
     <FilterPanel description="按投递、角色、演员和剧组筛选，便于核对 `apply -> role -> project -> company` 的真实串联。">
       <el-form :model="filters" inline>
         <el-form-item label="投递 ID">

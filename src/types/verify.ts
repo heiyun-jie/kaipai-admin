@@ -3,6 +3,8 @@ import type { PageResult } from './common'
 export interface VerifyListQuery {
   userId?: number
   status?: number
+  submitTimeFrom?: string
+  submitTimeTo?: string
   pageNo: number
   pageSize: number
 }

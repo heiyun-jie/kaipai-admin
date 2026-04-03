@@ -1,9 +1,5 @@
 <template>
-  <PageContainer
-    title="AI 简历治理"
-    eyebrow="AI Resume Governance"
-    description="围绕 AI 润色概览、额度消耗、失败样本和人工处置建立第一版真实治理页，当前治理入口仅认独立 AI 页面 / 动作权限。"
-  >
+  <PageContainer>
     <section class="overview-grid">
       <article v-for="card in overviewCards" :key="card.label" class="overview-card">
         <span>{{ card.label }}</span>

@@ -1,8 +1,5 @@
 <template>
-  <PageContainer
-    title="支付流水"
-    description="回看支付流水状态与回调结果，便于核对交易处理情况。"
-  >
+  <PageContainer>
     <FilterPanel description="按支付订单、渠道流水和回调时间筛选交易记录。">
       <el-form :model="filters" inline>
         <el-form-item label="支付订单号">

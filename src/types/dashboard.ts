@@ -4,9 +4,18 @@ export interface DashboardOverviewQuery {
   bizLine?: string
 }
 
+export type DashboardRouteSource = 'dashboard_recent_item' | 'dashboard_scope'
+
+export type DashboardRecentItemType =
+  | 'identity_verification'
+  | 'referral_risk'
+  | 'refund_order'
+  | 'payment_order'
+  | (string & {})
+
 export interface DashboardRecentItem {
   bizLine: string
-  itemType: string
+  itemType: DashboardRecentItemType
   itemId: number
   userId?: number | null
   referenceNo?: string | null

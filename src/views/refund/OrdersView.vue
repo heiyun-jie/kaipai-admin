@@ -1,8 +1,5 @@
 <template>
-  <PageContainer
-    title="退款单"
-    description="集中处理退款申请，支持查看详情并完成通过或拒绝。"
-  >
+  <PageContainer>
     <FilterPanel description="按退款单、支付单、审核状态和时间范围筛选退款申请。">
       <el-form :model="filters" inline>
         <el-form-item label="退款单号">
@@ -57,6 +54,22 @@
         <el-button type="primary" @click="loadOrders">查询</el-button>
       </template>
     </FilterPanel>
+
+    <el-alert
+      v-if="dashboardContextSource"
+      type="info"
+      show-icon
+      :closable="false"
+      class="context-alert"
+    >
+      <template #title>{{ dashboardContextTitle }}</template>
+      <template #default>
+        <div class="context-alert__content">
+          <span>{{ dashboardContextSummary }}</span>
+          <el-button link type="primary" @click="clearDashboardContext">清空上下文</el-button>
+        </div>
+      </template>
+    </el-alert>
 
     <el-card class="table-card" shadow="never">
       <el-table :data="rows" v-loading="loading">
@@ -197,8 +210,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
 import { approveRefundOrder, fetchRefundOrderDetail, fetchRefundOrders, rejectRefundOrder } from '@/api/refund'
 import FilterPanel from '@/components/business/FilterPanel.vue'
 import PageContainer from '@/components/business/PageContainer.vue'
@@ -207,11 +221,19 @@ import StatusTag from '@/components/business/StatusTag.vue'
 import AuditConfirmDialog from '@/components/dialogs/AuditConfirmDialog.vue'
 import { refundAuditStatusMap, refundStatusMap } from '@/constants/status'
 import type { RefundOrderDetail, RefundOrderItem, RefundOrderQuery } from '@/types/refund'
+import {
+  getDashboardContextFallbackSummary,
+  getDashboardContextTitle,
+  readRouteQueryString,
+  resolveDashboardRouteSource,
+} from '@/utils/dashboard-context'
 import { formatCurrency, formatDateTime } from '@/utils/format'
 
 type AuditMode = 'approve' | 'reject'
 
 const loading = ref(false)
+const route = useRoute()
+const router = useRouter()
 const rows = ref<RefundOrderItem[]>([])
 const total = ref(0)
 const detailVisible = ref(false)
@@ -237,6 +259,21 @@ const filters = reactive<RefundOrderQuery>({
 
 const createdAtRange = ref<string[]>([])
 const auditedAtRange = ref<string[]>([])
+const dashboardContextSource = computed(() => resolveDashboardRouteSource(route.query.source))
+const dashboardContextTitle = computed(() => getDashboardContextTitle(dashboardContextSource.value))
+const dashboardContextSummary = computed(() => {
+  const parts: string[] = []
+  if (filters.refundNo) {
+    parts.push(`退款单号 ${filters.refundNo}`)
+  }
+  if (filters.userId != null) {
+    parts.push(`用户 ID ${filters.userId}`)
+  }
+  if (filters.createdAtFrom && filters.createdAtTo) {
+    parts.push(`创建时间 ${formatDateTime(filters.createdAtFrom)} 至 ${formatDateTime(filters.createdAtTo)}`)
+  }
+  return parts.join('；') || getDashboardContextFallbackSummary(dashboardContextSource.value)
+})
 
 const refundBlocks = computed(() => {
   if (!detail.value) {
@@ -287,6 +324,20 @@ function handleCreatedAtRangeChange(value: string[] | null) {
 function handleAuditedAtRangeChange(value: string[] | null) {
   filters.auditedAtFrom = value?.[0] || ''
   filters.auditedAtTo = value?.[1] || ''
+}
+
+function applyRouteFilters() {
+  filters.refundNo = readRouteQueryString(route.query.refundNo) || ''
+  const userId = readRouteQueryString(route.query.userId)
+  filters.userId = userId ? Number(userId) : undefined
+  filters.createdAtFrom = readRouteQueryString(route.query.createdAtFrom) || ''
+  filters.createdAtTo = readRouteQueryString(route.query.createdAtTo) || ''
+  createdAtRange.value =
+    filters.createdAtFrom && filters.createdAtTo ? [filters.createdAtFrom, filters.createdAtTo] : []
+}
+
+function clearDashboardContext() {
+  router.replace({ path: route.path })
 }
 
 async function loadOrders() {
@@ -367,7 +418,14 @@ function resetFilters() {
   loadOrders()
 }
 
-onMounted(loadOrders)
+watch(
+  () => route.fullPath,
+  () => {
+    applyRouteFilters()
+    loadOrders()
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped lang="scss">
@@ -375,6 +433,17 @@ onMounted(loadOrders)
 .detail-card {
   border: 1px solid var(--kp-border);
   background: var(--kp-surface);
+}
+
+.context-alert {
+  margin-bottom: 18px;
+}
+
+.context-alert__content {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
 }
 
 .pager {
@@ -426,6 +495,7 @@ onMounted(loadOrders)
 }
 
 @media (max-width: 960px) {
+  .context-alert__content,
   .detail-split,
   .detail-grid {
     grid-template-columns: 1fr;

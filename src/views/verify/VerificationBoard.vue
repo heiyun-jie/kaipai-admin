@@ -1,5 +1,5 @@
 <template>
-  <PageContainer :title="title" eyebrow="Verify Review" :description="description">
+  <PageContainer>
     <section class="verify-overview">
       <article v-for="card in overviewCards" :key="card.label" class="verify-overview__card">
         <div class="verify-overview__head">
@@ -27,12 +27,40 @@
             <el-option label="已拒绝" :value="3" />
           </el-select>
         </el-form-item>
+        <el-form-item label="提交时间">
+          <el-date-picker
+            v-model="submitTimeRange"
+            type="datetimerange"
+            unlink-panels
+            range-separator="至"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            style="width: 360px"
+          />
+        </el-form-item>
       </el-form>
       <template #actions>
         <el-button @click="resetFilters">重置</el-button>
         <el-button type="primary" @click="loadList">查询</el-button>
       </template>
     </FilterPanel>
+
+    <el-alert
+      v-if="dashboardContextSource"
+      type="info"
+      show-icon
+      :closable="false"
+      class="context-alert"
+    >
+      <template #title>{{ dashboardContextTitle }}</template>
+      <template #default>
+        <div class="context-alert__content">
+          <span>{{ dashboardContextSummary }}</span>
+          <el-button link type="primary" @click="clearDashboardContext">清空上下文</el-button>
+        </div>
+      </template>
+    </el-alert>
 
     <el-card class="table-card" shadow="never">
       <div class="verify-table__header">
@@ -169,8 +197,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
 import AuditConfirmDialog from '@/components/dialogs/AuditConfirmDialog.vue'
 import FilterPanel from '@/components/business/FilterPanel.vue'
 import PageContainer from '@/components/business/PageContainer.vue'
@@ -178,19 +207,22 @@ import PermissionButton from '@/components/business/PermissionButton.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import { approveVerify, fetchVerifyDetail, fetchVerifyList, rejectVerify } from '@/api/verify'
 import { verifyStatusMap } from '@/constants/status'
+import {
+  getDashboardContextFallbackSummary,
+  getDashboardContextTitle,
+  readRouteQueryString,
+  resolveDashboardRouteSource,
+} from '@/utils/dashboard-context'
 import { formatDateTime, maskText } from '@/utils/format'
 import type { VerifyDetail, VerifyListItem, VerifyQuery } from '@/types/verify'
+
+type DateRangeValue = [string, string] | []
 
 const props = defineProps<{
   mode: 'pending' | 'history'
 }>()
-
-const title = computed(() => (props.mode === 'pending' ? '实名认证待审核' : '实名认证历史'))
-const description = computed(() =>
-  props.mode === 'pending'
-    ? '集中处理待审核实名认证申请，支持查看资料并完成通过或拒绝。'
-    : '按状态回看历史审核记录，便于复核处理结果和追踪进度。'
-)
+const route = useRoute()
+const router = useRouter()
 
 const loading = ref(false)
 const rows = ref<VerifyListItem[]>([])
@@ -204,8 +236,24 @@ const currentRow = ref<VerifyListItem | null>(null)
 const filters = reactive<VerifyQuery>({
   userId: undefined,
   status: props.mode === 'pending' ? 1 : undefined,
+  submitTimeFrom: undefined,
+  submitTimeTo: undefined,
   pageNo: 1,
   pageSize: 20,
+})
+
+const submitTimeRange = computed<DateRangeValue>({
+  get: (): DateRangeValue =>
+    filters.submitTimeFrom && filters.submitTimeTo ? [filters.submitTimeFrom, filters.submitTimeTo] as [string, string] : [],
+  set: (value: DateRangeValue) => {
+    if (Array.isArray(value) && value.length === 2) {
+      filters.submitTimeFrom = value[0]
+      filters.submitTimeTo = value[1]
+      return
+    }
+    filters.submitTimeFrom = undefined
+    filters.submitTimeTo = undefined
+  },
 })
 
 const auditMeta = computed(() => [
@@ -223,6 +271,29 @@ const currentStatusMeta = computed(() => {
   }
   return verifyStatusMap[filters.status] || { label: `状态 ${filters.status}`, tone: 'info' as const }
 })
+const dashboardContextSource = computed(() => resolveDashboardRouteSource(route.query.source))
+const dashboardContextTitle = computed(() => getDashboardContextTitle(dashboardContextSource.value))
+const dashboardContextSummary = computed(() => {
+  const parts: string[] = []
+  if (filters.userId != null) {
+    parts.push(`用户 ID ${filters.userId}`)
+  }
+  if (filters.submitTimeFrom && filters.submitTimeTo) {
+    parts.push(`提交时间 ${formatDateTime(filters.submitTimeFrom)} 至 ${formatDateTime(filters.submitTimeTo)}`)
+  }
+  return parts.join('；') || getDashboardContextFallbackSummary(dashboardContextSource.value)
+})
+
+function applyRouteFilters() {
+  const userId = readRouteQueryString(route.query.userId)
+  filters.userId = userId ? Number(userId) : undefined
+  filters.submitTimeFrom = readRouteQueryString(route.query.submitTimeFrom)
+  filters.submitTimeTo = readRouteQueryString(route.query.submitTimeTo)
+}
+
+function clearDashboardContext() {
+  router.replace({ path: route.path })
+}
 
 const overviewCards = computed(() => [
   {
@@ -304,11 +375,20 @@ async function submitAudit(remark: string) {
 function resetFilters() {
   filters.userId = undefined
   filters.status = props.mode === 'pending' ? 1 : undefined
+  filters.submitTimeFrom = undefined
+  filters.submitTimeTo = undefined
   filters.pageNo = 1
   loadList()
 }
 
-onMounted(loadList)
+watch(
+  () => route.fullPath,
+  () => {
+    applyRouteFilters()
+    loadList()
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped lang="scss">
@@ -369,6 +449,17 @@ onMounted(loadList)
 }
 
 .verify-filter-form {
+  align-items: center;
+}
+
+.context-alert {
+  margin-bottom: 18px;
+}
+
+.context-alert__content {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
   align-items: center;
 }
 
@@ -518,6 +609,10 @@ onMounted(loadList)
 
   .verify-table__header,
   .verify-detail__hero {
+    display: grid;
+  }
+
+  .context-alert__content {
     display: grid;
   }
 

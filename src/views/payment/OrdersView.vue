@@ -1,8 +1,5 @@
 <template>
-  <PageContainer
-    title="支付订单"
-    description="查看支付订单全貌，统一回看订单信息、支付进度和退款摘要。"
-  >
+  <PageContainer>
     <FilterPanel description="按订单号、用户、支付状态和时间范围筛选支付订单。">
       <el-form :model="filters" inline>
         <el-form-item label="订单号">
@@ -55,6 +52,22 @@
         <el-button type="primary" @click="loadOrders">查询</el-button>
       </template>
     </FilterPanel>
+
+    <el-alert
+      v-if="dashboardContextSource"
+      type="info"
+      show-icon
+      :closable="false"
+      class="context-alert"
+    >
+      <template #title>{{ dashboardContextTitle }}</template>
+      <template #default>
+        <div class="context-alert__content">
+          <span>{{ dashboardContextSummary }}</span>
+          <el-button link type="primary" @click="clearDashboardContext">清空上下文</el-button>
+        </div>
+      </template>
+    </el-alert>
 
     <el-card class="table-card" shadow="never">
       <el-table :data="rows" v-loading="loading">
@@ -175,16 +188,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { fetchPaymentOrderDetail, fetchPaymentOrders } from '@/api/payment'
 import FilterPanel from '@/components/business/FilterPanel.vue'
 import PageContainer from '@/components/business/PageContainer.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import { paymentOrderStatusMap, paymentTransactionStatusMap, refundAuditStatusMap, refundStatusMap } from '@/constants/status'
 import type { PaymentOrderDetail, PaymentOrderListItem, PaymentOrderQuery } from '@/types/payment'
+import {
+  getDashboardContextFallbackSummary,
+  getDashboardContextTitle,
+  readRouteQueryString,
+  resolveDashboardRouteSource,
+} from '@/utils/dashboard-context'
 import { formatCurrency, formatDateTime } from '@/utils/format'
 
 const loading = ref(false)
+const route = useRoute()
+const router = useRouter()
 const rows = ref<PaymentOrderListItem[]>([])
 const total = ref(0)
 const detailVisible = ref(false)
@@ -208,6 +230,21 @@ const filters = reactive<PaymentOrderQuery>({
 
 const createdAtRange = ref<string[]>([])
 const paidAtRange = ref<string[]>([])
+const dashboardContextSource = computed(() => resolveDashboardRouteSource(route.query.source))
+const dashboardContextTitle = computed(() => getDashboardContextTitle(dashboardContextSource.value))
+const dashboardContextSummary = computed(() => {
+  const parts: string[] = []
+  if (filters.orderNo) {
+    parts.push(`支付订单号 ${filters.orderNo}`)
+  }
+  if (filters.userId != null) {
+    parts.push(`用户 ID ${filters.userId}`)
+  }
+  if (filters.createdAtFrom && filters.createdAtTo) {
+    parts.push(`创建时间 ${formatDateTime(filters.createdAtFrom)} 至 ${formatDateTime(filters.createdAtTo)}`)
+  }
+  return parts.join('；') || getDashboardContextFallbackSummary(dashboardContextSource.value)
+})
 
 const orderBlocks = computed(() => {
   const order = detail.value?.orderInfo
@@ -277,6 +314,20 @@ function handlePaidAtRangeChange(value: string[] | null) {
   filters.paidAtTo = value?.[1] || ''
 }
 
+function applyRouteFilters() {
+  filters.orderNo = readRouteQueryString(route.query.orderNo) || ''
+  const userId = readRouteQueryString(route.query.userId)
+  filters.userId = userId ? Number(userId) : undefined
+  filters.createdAtFrom = readRouteQueryString(route.query.createdAtFrom) || ''
+  filters.createdAtTo = readRouteQueryString(route.query.createdAtTo) || ''
+  createdAtRange.value =
+    filters.createdAtFrom && filters.createdAtTo ? [filters.createdAtFrom, filters.createdAtTo] : []
+}
+
+function clearDashboardContext() {
+  router.replace({ path: route.path })
+}
+
 async function loadOrders() {
   loading.value = true
   try {
@@ -312,7 +363,14 @@ function resetFilters() {
   loadOrders()
 }
 
-onMounted(loadOrders)
+watch(
+  () => route.fullPath,
+  () => {
+    applyRouteFilters()
+    loadOrders()
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped lang="scss">
@@ -320,6 +378,17 @@ onMounted(loadOrders)
 .detail-card {
   border: 1px solid var(--kp-border);
   background: var(--kp-surface);
+}
+
+.context-alert {
+  margin-bottom: 18px;
+}
+
+.context-alert__content {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
 }
 
 .stack-cell {
@@ -378,6 +447,7 @@ onMounted(loadOrders)
 }
 
 @media (max-width: 960px) {
+  .context-alert__content,
   .detail-split,
   .detail-grid {
     grid-template-columns: 1fr;

@@ -43,7 +43,7 @@ export const entitlementStatusMap: Record<number, { label: string; tone: 'info' 
 
 export const dashboardBizLineMap: Record<string, string> = {
   verify: '实名认证',
-  referral: '邀请裂变',
+  referral: '邀请治理',
   refund: '退款',
   payment: '支付',
 }

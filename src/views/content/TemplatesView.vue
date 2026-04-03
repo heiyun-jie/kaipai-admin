@@ -1,5 +1,5 @@
 <template>
-  <PageContainer title="场景模板" description="围绕模板列表、草稿编辑、发布和回滚建立第一轮配置闭环。">
+  <PageContainer>
     <template #actions>
       <PermissionButton action="action.content.template.create" type="primary" @click="openCreate">新建模板</PermissionButton>
     </template>

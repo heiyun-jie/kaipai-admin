@@ -1,10 +1,9 @@
 <template>
-  <PageContainer
-    title="邀请记录"
-    eyebrow="Referral Records"
-    description="查看邀请注册、状态变化与风险标记，确认邀请记录和前台展示口径是否一致。"
-  >
-    <FilterPanel description="按邀请码、邀请人、被邀请人和状态筛选邀请记录，优先验证真实链路样本。">
+  <PageContainer>
+    <ReferralGovernanceNav />
+    <GovernanceOverviewCards :cards="overviewCards" />
+
+    <FilterPanel description="按邀请码、邀请人、被邀请人和状态筛选邀请记录，优先核对真实治理样本。">
       <el-form :model="filters" inline>
         <el-form-item label="邀请码">
           <el-input v-model="filters.inviteCode" placeholder="邀请码" clearable />
@@ -29,12 +28,52 @@
             <el-option label="命中风险" :value="1" />
           </el-select>
         </el-form-item>
+        <el-form-item label="注册时间">
+          <el-date-picker
+            v-model="registeredRange"
+            type="datetimerange"
+            unlink-panels
+            range-separator="至"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            style="width: 360px"
+          />
+        </el-form-item>
+        <el-form-item label="生效时间">
+          <el-date-picker
+            v-model="validatedRange"
+            type="datetimerange"
+            unlink-panels
+            range-separator="至"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            style="width: 360px"
+          />
+        </el-form-item>
       </el-form>
       <template #actions>
         <el-button @click="resetFilters">重置</el-button>
         <el-button type="primary" @click="loadList">查询</el-button>
       </template>
     </FilterPanel>
+
+    <el-alert
+      v-if="dashboardContextSource"
+      type="info"
+      show-icon
+      :closable="false"
+      class="context-alert"
+    >
+      <template #title>{{ dashboardContextTitle }}</template>
+      <template #default>
+        <div class="context-alert__content">
+          <span>{{ dashboardContextSummary }}</span>
+          <el-button link type="primary" @click="clearDashboardContext">清空上下文</el-button>
+        </div>
+      </template>
+    </el-alert>
 
     <el-card class="table-card" shadow="never">
       <el-table :data="rows" v-loading="loading">
@@ -140,16 +179,29 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { fetchReferralRecordDetail, fetchReferralRecords } from '@/api/referral'
 import FilterPanel from '@/components/business/FilterPanel.vue'
+import GovernanceOverviewCards from '@/components/business/GovernanceOverviewCards.vue'
 import PageContainer from '@/components/business/PageContainer.vue'
+import ReferralGovernanceNav from '@/components/business/ReferralGovernanceNav.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import { referralRiskFlagMap, referralStatusMap } from '@/constants/status'
+import {
+  getDashboardContextFallbackSummary,
+  getDashboardContextTitle,
+  readRouteQueryString,
+  resolveDashboardRouteSource,
+} from '@/utils/dashboard-context'
 import type { ReferralRecordDetail, ReferralRecordItem, ReferralRecordQuery } from '@/types/referral'
 import { formatDateTime, maskPhone, maskText } from '@/utils/format'
 
+type DateRangeValue = [string, string] | []
+
 const loading = ref(false)
+const route = useRoute()
+const router = useRouter()
 const detailLoading = ref(false)
 const rows = ref<ReferralRecordItem[]>([])
 const total = ref(0)
@@ -168,6 +220,63 @@ const filters = reactive<ReferralRecordQuery>({
   registeredAtTo: undefined,
   validatedAtFrom: undefined,
   validatedAtTo: undefined,
+})
+
+const overviewCards = computed(() => {
+  const validCount = rows.value.filter((item) => item.status === 1).length
+  const riskCount = rows.value.filter((item) => item.riskFlag === 1).length
+
+  return [
+    {
+      label: '查询规模',
+      badge: '当前查询',
+      tone: null,
+      value: `${total.value} 条`,
+      hint: '当前筛选条件下的邀请记录总数。',
+    },
+    {
+      label: '当前页有效记录',
+      badge: '状态',
+      tone: 'success' as const,
+      value: `${validCount} 条`,
+      hint: '当前页样本中处于有效状态的邀请记录。',
+    },
+    {
+      label: '当前页风险命中',
+      badge: '风控',
+      tone: 'warning' as const,
+      value: `${riskCount} 条`,
+      hint: '当前页样本中被标记为命中风险的邀请记录。',
+    },
+  ]
+})
+
+const registeredRange = computed<DateRangeValue>({
+  get: (): DateRangeValue =>
+    filters.registeredAtFrom && filters.registeredAtTo ? [filters.registeredAtFrom, filters.registeredAtTo] as [string, string] : [],
+  set: (value: DateRangeValue) => {
+    if (Array.isArray(value) && value.length === 2) {
+      filters.registeredAtFrom = value[0]
+      filters.registeredAtTo = value[1]
+      return
+    }
+    filters.registeredAtFrom = undefined
+    filters.registeredAtTo = undefined
+  },
+})
+
+const validatedRange = computed<DateRangeValue>({
+  get: (): DateRangeValue =>
+    filters.validatedAtFrom && filters.validatedAtTo ? [filters.validatedAtFrom, filters.validatedAtTo] as [string, string] : [],
+  set: (value: DateRangeValue) => {
+    if (Array.isArray(value) && value.length === 2) {
+      filters.validatedAtFrom = value[0]
+      filters.validatedAtTo = value[1]
+      return
+    }
+    filters.validatedAtFrom = undefined
+    filters.validatedAtTo = undefined
+  },
 })
 
 const recordBlocks = computed(() => {
@@ -190,6 +299,15 @@ const recordBlocks = computed(() => {
 
 const inviterBlocks = computed(() => buildUserBlocks(detail.value?.inviterInfo))
 const inviteeBlocks = computed(() => buildUserBlocks(detail.value?.inviteeInfo))
+const dashboardContextSource = computed(() => resolveDashboardRouteSource(route.query.source))
+const dashboardContextTitle = computed(() => getDashboardContextTitle(dashboardContextSource.value))
+const dashboardContextSummary = computed(() => {
+  const parts: string[] = []
+  if (filters.registeredAtFrom && filters.registeredAtTo) {
+    parts.push(`注册时间 ${formatDateTime(filters.registeredAtFrom)} 至 ${formatDateTime(filters.registeredAtTo)}`)
+  }
+  return parts.join('；') || getDashboardContextFallbackSummary(dashboardContextSource.value)
+})
 
 const riskBlocks = computed(() => {
   const risk = detail.value?.riskInfo
@@ -228,6 +346,15 @@ function formatRealAuthStatus(status?: number | null) {
     return '已拒绝'
   }
   return '未实名'
+}
+
+function applyRouteFilters() {
+  filters.registeredAtFrom = readRouteQueryString(route.query.registeredAtFrom)
+  filters.registeredAtTo = readRouteQueryString(route.query.registeredAtTo)
+}
+
+function clearDashboardContext() {
+  router.replace({ path: route.path })
 }
 
 async function loadList() {
@@ -279,7 +406,14 @@ function resetFilters() {
   loadList()
 }
 
-onMounted(loadList)
+watch(
+  () => route.fullPath,
+  () => {
+    applyRouteFilters()
+    loadList()
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped lang="scss">
@@ -287,6 +421,17 @@ onMounted(loadList)
 .detail-card {
   border: 1px solid var(--kp-border);
   background: var(--kp-surface);
+}
+
+.context-alert {
+  margin-bottom: 16px;
+}
+
+.context-alert__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .stack-cell {
@@ -348,6 +493,11 @@ onMounted(loadList)
   .detail-split,
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .context-alert__content {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>

@@ -1,16 +1,15 @@
 <template>
-  <PageContainer
-    title="邀请规则"
-    eyebrow="Referral Policies"
-    description="统一维护邀请资格判定门槛、频控限制和自动发放策略，避免前后台规则继续分裂。"
-  >
+  <PageContainer>
     <template #actions>
       <PermissionButton action="action.referral.policy.create" type="primary" @click="openCreate">
         新建规则
       </PermissionButton>
     </template>
 
-    <FilterPanel description="按规则名称和启用状态筛选，优先确认当前生效规则与资格发放口径是否一致。">
+    <ReferralGovernanceNav />
+    <GovernanceOverviewCards :cards="summaryCards" />
+
+    <FilterPanel description="按规则名称和启用状态筛选，优先确认当前生效规则与资格发放治理口径一致。">
       <el-form :model="filters" inline>
         <el-form-item label="规则名称">
           <el-input v-model="filters.policyName" placeholder="规则名称" clearable />
@@ -28,7 +27,30 @@
       </template>
     </FilterPanel>
 
+    <el-alert
+      v-if="dashboardContextSource"
+      type="info"
+      show-icon
+      :closable="false"
+      class="context-alert"
+    >
+      <template #title>{{ dashboardContextTitle }}</template>
+      <template #default>
+        <div class="context-alert__content">
+          <span>{{ dashboardContextSummary }}</span>
+          <el-button link type="primary" @click="clearDashboardContext">清空上下文</el-button>
+        </div>
+      </template>
+    </el-alert>
+
     <el-card class="table-card" shadow="never">
+      <div class="policy-table__header">
+        <div>
+          <p class="policy-table__eyebrow">RULE GOVERNANCE</p>
+          <h3>当前规则清单</h3>
+        </div>
+        <span class="policy-table__hint">优先核对资格门槛、频控约束和自动发放是否保持同一治理口径。</span>
+      </div>
       <el-table :data="rows" v-loading="loading">
         <el-table-column prop="policyId" label="规则 ID" min-width="110" />
         <el-table-column prop="policyName" label="规则名称" min-width="180" />
@@ -84,6 +106,12 @@
             </div>
           </template>
         </el-table-column>
+        <template #empty>
+          <div class="policy-empty">
+            <strong>当前条件下没有邀请规则</strong>
+            <p>可以清空规则名称或切换启用状态，继续查看其他治理配置。</p>
+          </div>
+        </template>
       </el-table>
       <div class="pager">
         <el-pagination
@@ -243,8 +271,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
 import {
   createReferralPolicy,
   disableReferralPolicy,
@@ -254,8 +283,10 @@ import {
   updateReferralPolicy,
 } from '@/api/referral'
 import FilterPanel from '@/components/business/FilterPanel.vue'
+import GovernanceOverviewCards from '@/components/business/GovernanceOverviewCards.vue'
 import PageContainer from '@/components/business/PageContainer.vue'
 import PermissionButton from '@/components/business/PermissionButton.vue'
+import ReferralGovernanceNav from '@/components/business/ReferralGovernanceNav.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import AuditConfirmDialog from '@/components/dialogs/AuditConfirmDialog.vue'
 import { referralPolicyEnabledMap } from '@/constants/status'
@@ -265,6 +296,11 @@ import type {
   ReferralPolicyQuery,
   ReferralPolicySavePayload,
 } from '@/types/referral'
+import {
+  getDashboardContextFallbackSummary,
+  getDashboardContextTitle,
+  resolveDashboardRouteSource,
+} from '@/utils/dashboard-context'
 import { formatDateTime } from '@/utils/format'
 
 type EditorMode = 'create' | 'edit'
@@ -272,6 +308,8 @@ type StatusMode = 'enable' | 'disable'
 type ReferralPolicyEditorForm = Omit<ReferralPolicySavePayload, 'enabled'>
 
 const loading = ref(false)
+const route = useRoute()
+const router = useRouter()
 const detailLoading = ref(false)
 const submitting = ref(false)
 const statusSubmitting = ref(false)
@@ -292,6 +330,9 @@ const filters = reactive<ReferralPolicyQuery>({
   policyName: '',
   enabled: undefined,
 })
+const dashboardContextSource = computed(() => resolveDashboardRouteSource(route.query.source))
+const dashboardContextTitle = computed(() => getDashboardContextTitle(dashboardContextSource.value))
+const dashboardContextSummary = computed(() => getDashboardContextFallbackSummary(dashboardContextSource.value))
 
 const form = reactive<ReferralPolicyEditorForm>({
   policyName: '',
@@ -302,6 +343,43 @@ const form = reactive<ReferralPolicyEditorForm>({
   hourlyInviteLimit: undefined,
   autoGrantEnabled: 0,
   grantRuleJson: '',
+})
+
+const summaryCards = computed(() => {
+  const enabledCount = rows.value.filter((item) => item.enabled === 1).length
+  const autoGrantCount = rows.value.filter((item) => item.autoGrantEnabled === 1).length
+  const throttleCoveredCount = rows.value.filter((item) => item.sameDeviceLimit != null || item.hourlyInviteLimit != null).length
+
+  return [
+    {
+      label: '查询规模',
+      badge: '当前查询',
+      tone: null,
+      value: `${total.value} 条`,
+      hint: '当前筛选条件下命中的邀请规则总数。',
+    },
+    {
+      label: '当前页启用规则',
+      badge: '启用中',
+      tone: 'success' as const,
+      value: `${enabledCount} 条`,
+      hint: '当前页样本中仍处于启用状态的邀请规则。',
+    },
+    {
+      label: '当前页自动发放',
+      badge: '自动化',
+      tone: 'warning' as const,
+      value: `${autoGrantCount} 条`,
+      hint: '当前页样本中已开启自动发放的邀请规则。',
+    },
+    {
+      label: '当前页频控覆盖',
+      badge: '频控',
+      tone: 'info' as const,
+      value: `${throttleCoveredCount} 条`,
+      hint: '当前页样本中已配置同设备限制或小时频控的规则。',
+    },
+  ]
 })
 
 const overviewBlocks = computed(() => {
@@ -366,6 +444,10 @@ function formatPercent(value?: number | null) {
 
 function formatLimit(unit: string, value?: number | null) {
   return value == null ? '--' : `${value}${unit}`
+}
+
+function clearDashboardContext() {
+  router.replace({ path: route.path })
 }
 
 function resetEditorForm() {
@@ -526,7 +608,13 @@ function resetFilters() {
   loadList()
 }
 
-onMounted(loadList)
+watch(
+  () => route.fullPath,
+  () => {
+    loadList()
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped lang="scss">
@@ -536,11 +624,68 @@ onMounted(loadList)
   background: var(--kp-surface);
 }
 
+.context-alert {
+  margin-bottom: 16px;
+}
+
+.context-alert__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.policy-table__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.policy-table__eyebrow {
+  margin: 0 0 8px;
+  color: var(--kp-accent-deep);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.policy-table__header h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.policy-table__hint {
+  max-width: 320px;
+  color: var(--kp-text-secondary);
+  line-height: 1.7;
+  text-align: right;
+}
+
 .table-actions,
 .detail-actions {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.policy-empty {
+  display: grid;
+  gap: 8px;
+  padding: 32px 16px 36px;
+  text-align: center;
+
+  strong {
+    font-size: 20px;
+  }
+
+  p {
+    max-width: 420px;
+    margin: 0 auto;
+    color: var(--kp-text-secondary);
+    line-height: 1.75;
+  }
 }
 
 .pager {
@@ -599,6 +744,20 @@ onMounted(loadList)
 }
 
 @media (max-width: 960px) {
+  .policy-table__header {
+    display: grid;
+  }
+
+  .policy-table__hint {
+    max-width: none;
+    text-align: left;
+  }
+
+  .context-alert__content {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .detail-split,
   .detail-grid {
     grid-template-columns: 1fr;
