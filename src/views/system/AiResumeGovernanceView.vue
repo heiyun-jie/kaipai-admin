@@ -130,6 +130,41 @@
             <el-option label="已完成" value="resolved" />
           </el-select>
         </el-form-item>
+        <el-form-item label="通知状态">
+          <el-select v-model="failureFilters.notificationStatus" clearable style="width: 160px">
+            <el-option label="待发送" value="pending_send" />
+            <el-option label="已发送" value="sent" />
+            <el-option label="已补发" value="resent" />
+            <el-option label="无需通知" value="not_required" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="回执状态">
+          <el-select v-model="failureFilters.notificationReceiptStatus" clearable style="width: 160px">
+            <el-option label="未发送" value="not_sent" />
+            <el-option label="待回执" value="pending_receipt" />
+            <el-option label="已回执" value="received" />
+            <el-option label="回执超时" value="receipt_overdue" />
+            <el-option label="无需回执" value="not_required" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="催办阶段">
+          <el-select v-model="failureFilters.autoRemindStage" clearable style="width: 170px">
+            <el-option label="未启动" value="idle" />
+            <el-option label="观察中" value="watching" />
+            <el-option label="已人工介入" value="manual_intervened" />
+            <el-option label="待催办" value="ready" />
+            <el-option label="待升级" value="escalation_due" />
+            <el-option label="已完成" value="completed" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="SLA 状态">
+          <el-select v-model="failureFilters.slaStatus" clearable style="width: 160px">
+            <el-option label="未启动" value="not_started" />
+            <el-option label="计时中" value="active" />
+            <el-option label="SLA 内完成" value="within_sla" />
+            <el-option label="已超时" value="breached" />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #actions>
         <el-button @click="resetFailureFilters">重置</el-button>
@@ -179,7 +214,14 @@
                   <strong>{{ row.assignedAdminName || '未分派' }}</strong>
                   <StatusTag v-bind="getFailureCollaborationTag(row.collaborationStatus)" />
                 </div>
+                <div class="tag-cluster">
+                  <StatusTag v-bind="getFailureNotificationTag(row.notificationStatus)" />
+                  <StatusTag v-bind="getFailureReceiptTag(row.notificationReceiptStatus)" />
+                  <StatusTag v-bind="getFailureAutoRemindTag(row.autoRemindStage)" />
+                  <StatusTag v-bind="getFailureSlaTag(row.slaStatus)" />
+                </div>
                 <span>{{ formatAssignmentAckStatus(row) }}</span>
+                <span>{{ formatFailureNotification(row) }}</span>
                 <span>{{ formatFailureClaimDeadline(row) }}</span>
                 <span>{{ formatFailureReminder(row) }}</span>
                 <span>{{ row.escalationRoleName || row.escalationRoleCode || '未设置升级目标' }}</span>
@@ -313,7 +355,14 @@
                   <strong>{{ row.assignedAdminName || '未分派' }}</strong>
                   <StatusTag v-bind="getFailureCollaborationTag(row.collaborationStatus)" />
                 </div>
+                <div class="tag-cluster">
+                  <StatusTag v-bind="getFailureNotificationTag(row.notificationStatus)" />
+                  <StatusTag v-bind="getFailureReceiptTag(row.notificationReceiptStatus)" />
+                  <StatusTag v-bind="getFailureAutoRemindTag(row.autoRemindStage)" />
+                  <StatusTag v-bind="getFailureSlaTag(row.slaStatus)" />
+                </div>
                 <span>{{ formatAssignmentAckStatus(row) }}</span>
+                <span>{{ formatFailureNotification(row) }}</span>
                 <span>{{ formatFailureClaimDeadline(row) }}</span>
                 <span>{{ formatFailureReminder(row) }}</span>
                 <span>{{ row.escalationRoleName || row.escalationRoleCode || '未设置升级目标' }}</span>
@@ -863,6 +912,10 @@ const failureFilters = reactive<AdminAiResumeFailureQuery>({
   assignedAdminId: undefined,
   escalationRoleCode: '',
   collaborationStatus: '',
+  notificationStatus: '',
+  notificationReceiptStatus: '',
+  autoRemindStage: '',
+  slaStatus: '',
   limit: 20,
 })
 
@@ -1007,7 +1060,13 @@ const actionMeta = computed(() => [
   { label: '当前状态', value: getFailureHandlingTag(currentFailure.value?.handlingStatus).label },
   { label: '当前责任人', value: currentFailure.value?.assignedAdminName || '未分派' },
   { label: '协同状态', value: getFailureCollaborationTag(currentFailure.value?.collaborationStatus).label },
+  { label: '通知状态', value: getFailureNotificationTag(currentFailure.value?.notificationStatus).label },
+  { label: '回执状态', value: getFailureReceiptTag(currentFailure.value?.notificationReceiptStatus).label },
+  { label: '催办阶段', value: getFailureAutoRemindTag(currentFailure.value?.autoRemindStage).label },
+  { label: 'SLA 状态', value: getFailureSlaTag(currentFailure.value?.slaStatus).label },
   { label: '签收 SLA', value: formatDateTime(currentFailure.value?.claimDeadlineAt) },
+  { label: '最近通知', value: formatDateTime(currentFailure.value?.notificationSentAt) },
+  { label: '最近回执', value: formatDateTime(currentFailure.value?.notificationReceiptAt) },
   { label: '最近催办', value: formatFailureReminderValue(currentFailure.value) },
   { label: '升级目标', value: currentFailure.value?.escalationRoleName || currentFailure.value?.escalationRoleCode || '未设置' },
 ])
@@ -1038,6 +1097,12 @@ const failureDetailBlocks = computed(() => {
     { label: '处理状态', value: getFailureHandlingTag(failureDetail.value.handlingStatus).label },
     { label: '当前责任人', value: failureDetail.value.assignedAdminName || '未分派' },
     { label: '协同状态', value: getFailureCollaborationTag(failureDetail.value.collaborationStatus).label },
+    { label: '通知状态', value: getFailureNotificationTag(failureDetail.value.notificationStatus).label },
+    { label: '回执状态', value: getFailureReceiptTag(failureDetail.value.notificationReceiptStatus).label },
+    { label: '催办阶段', value: getFailureAutoRemindTag(failureDetail.value.autoRemindStage).label },
+    { label: 'SLA 状态', value: getFailureSlaTag(failureDetail.value.slaStatus).label },
+    { label: '最近通知', value: formatDateTime(failureDetail.value.notificationSentAt) },
+    { label: '最近回执', value: formatDateTime(failureDetail.value.notificationReceiptAt) },
     { label: '签收时间', value: formatDateTime(failureDetail.value.assignmentAcknowledgedAt) },
     { label: '签收 SLA', value: formatDateTime(failureDetail.value.claimDeadlineAt) },
     { label: '最近催办', value: formatFailureReminderValue(failureDetail.value) },
@@ -1127,6 +1192,67 @@ function getFailureCollaborationTag(status?: string | null) {
   return { label: '未分派', tone: 'info' as const }
 }
 
+function getFailureNotificationTag(status?: string | null) {
+  if (status === 'resent') {
+    return { label: '已补发', tone: 'warning' as const }
+  }
+  if (status === 'sent') {
+    return { label: '已发送', tone: 'success' as const }
+  }
+  if (status === 'not_required') {
+    return { label: '无需通知', tone: 'info' as const }
+  }
+  return { label: '待发送', tone: 'warning' as const }
+}
+
+function getFailureReceiptTag(status?: string | null) {
+  if (status === 'received') {
+    return { label: '已回执', tone: 'success' as const }
+  }
+  if (status === 'receipt_overdue') {
+    return { label: '回执超时', tone: 'danger' as const }
+  }
+  if (status === 'not_required') {
+    return { label: '无需回执', tone: 'info' as const }
+  }
+  if (status === 'not_sent') {
+    return { label: '未发送', tone: 'warning' as const }
+  }
+  return { label: '待回执', tone: 'warning' as const }
+}
+
+function getFailureAutoRemindTag(status?: string | null) {
+  if (status === 'completed') {
+    return { label: '已完成', tone: 'success' as const }
+  }
+  if (status === 'escalation_due') {
+    return { label: '待升级', tone: 'danger' as const }
+  }
+  if (status === 'ready') {
+    return { label: '待催办', tone: 'warning' as const }
+  }
+  if (status === 'manual_intervened') {
+    return { label: '已人工介入', tone: 'info' as const }
+  }
+  if (status === 'watching') {
+    return { label: '观察中', tone: 'info' as const }
+  }
+  return { label: '未启动', tone: 'info' as const }
+}
+
+function getFailureSlaTag(status?: string | null) {
+  if (status === 'within_sla') {
+    return { label: 'SLA 内完成', tone: 'success' as const }
+  }
+  if (status === 'breached') {
+    return { label: '已超时', tone: 'danger' as const }
+  }
+  if (status === 'active') {
+    return { label: '计时中', tone: 'warning' as const }
+  }
+  return { label: '未启动', tone: 'info' as const }
+}
+
 function getFailureActionTag(actionType?: string | null, handlingStatus?: string | null) {
   if (actionType === 'assign') {
     return { label: '已分派', tone: 'info' as const }
@@ -1211,8 +1337,21 @@ function formatAssignmentAckStatus(row: AdminAiResumeFailureItem) {
   return getFailureCollaborationTag(row.collaborationStatus).label
 }
 
+function formatFailureNotification(row: AdminAiResumeFailureItem) {
+  const sentAt = row.notificationSentAt ? formatDateTime(row.notificationSentAt) : ''
+  const receiptAt = row.notificationReceiptAt ? formatDateTime(row.notificationReceiptAt) : ''
+  if (sentAt && receiptAt) {
+    return `通知 ${sentAt} · 回执 ${receiptAt}`
+  }
+  if (sentAt) {
+    return `通知 ${sentAt}`
+  }
+  return getFailureNotificationTag(row.notificationStatus).label
+}
+
 function formatFailureClaimDeadline(row: AdminAiResumeFailureItem) {
-  return row.claimDeadlineAt ? `SLA ${formatDateTime(row.claimDeadlineAt)}` : '未设置签收 SLA'
+  const deadline = row.claimDeadlineAt ? formatDateTime(row.claimDeadlineAt) : '未设置签收 SLA'
+  return `${getFailureSlaTag(row.slaStatus).label} · ${row.claimDeadlineAt ? `签收 ${deadline}` : deadline}`
 }
 
 function formatFailureReminderValue(row?: AdminAiResumeFailureItem | null) {
@@ -1237,6 +1376,10 @@ function buildFailureQuery(): AdminAiResumeFailureQuery {
     assignedAdminId: failureFilters.assignedAdminId,
     escalationRoleCode: failureFilters.escalationRoleCode || undefined,
     collaborationStatus: failureFilters.collaborationStatus || undefined,
+    notificationStatus: failureFilters.notificationStatus || undefined,
+    notificationReceiptStatus: failureFilters.notificationReceiptStatus || undefined,
+    autoRemindStage: failureFilters.autoRemindStage || undefined,
+    slaStatus: failureFilters.slaStatus || undefined,
     limit: failureFilters.limit || 20,
   }
 }
@@ -1502,6 +1645,10 @@ function resetFailureFilters() {
   failureFilters.assignedAdminId = undefined
   failureFilters.escalationRoleCode = ''
   failureFilters.collaborationStatus = ''
+  failureFilters.notificationStatus = ''
+  failureFilters.notificationReceiptStatus = ''
+  failureFilters.autoRemindStage = ''
+  failureFilters.slaStatus = ''
   failureFilters.limit = 20
   loadFailures()
 }
@@ -1607,6 +1754,12 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.tag-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .recent-list {

@@ -73,6 +73,12 @@ export interface AdminAiResumeFailureItem {
   lastRemindedAt?: string | null
   claimDeadlineAt?: string | null
   collaborationStatus?: string | null
+  notificationStatus?: string | null
+  notificationSentAt?: string | null
+  notificationReceiptStatus?: string | null
+  notificationReceiptAt?: string | null
+  autoRemindStage?: string | null
+  slaStatus?: string | null
   handledAt?: string | null
   createdAt?: string | null
   handlingNotes?: AdminAiResumeFailureHandlingNote[]
@@ -114,6 +120,10 @@ export interface AdminAiResumeFailureQuery {
   assignedAdminId?: number
   escalationRoleCode?: string
   collaborationStatus?: string
+  notificationStatus?: string
+  notificationReceiptStatus?: string
+  autoRemindStage?: string
+  slaStatus?: string
   limit?: number
 }
 
