@@ -79,6 +79,12 @@ export interface AdminAiResumeFailureItem {
   notificationReceiptAt?: string | null
   autoRemindStage?: string | null
   slaStatus?: string | null
+  manualTakeoverByAdminId?: number | null
+  manualTakeoverByAdminName?: string | null
+  manualTakeoverAt?: string | null
+  autoRemindSkippedByAdminId?: number | null
+  autoRemindSkippedByAdminName?: string | null
+  autoRemindSkippedAt?: string | null
   handledAt?: string | null
   createdAt?: string | null
   handlingNotes?: AdminAiResumeFailureHandlingNote[]
@@ -102,6 +108,12 @@ export interface AdminAiResumeFailureHandlingNote {
   lastRemindedByAdminId?: number | null
   lastRemindedByAdminName?: string | null
   lastRemindedAt?: string | null
+  manualTakeoverByAdminId?: number | null
+  manualTakeoverByAdminName?: string | null
+  manualTakeoverAt?: string | null
+  autoRemindSkippedByAdminId?: number | null
+  autoRemindSkippedByAdminName?: string | null
+  autoRemindSkippedAt?: string | null
   handledAt?: string | null
 }
 

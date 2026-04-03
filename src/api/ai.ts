@@ -62,6 +62,14 @@ export function remindAdminAiResumeFailure(failureId: string, payload: AdminAiRe
   return request.post(`/admin/ai/resume/failures/${failureId}/remind`, payload).then((data) => data as unknown as AdminAiResumeFailureItem)
 }
 
+export function manualTakeoverAdminAiResumeFailure(failureId: string, payload: AdminAiResumeFailureActionPayload) {
+  return request.post(`/admin/ai/resume/failures/${failureId}/manual-takeover`, payload).then((data) => data as unknown as AdminAiResumeFailureItem)
+}
+
+export function skipAutoRemindAdminAiResumeFailure(failureId: string, payload: AdminAiResumeFailureActionPayload) {
+  return request.post(`/admin/ai/resume/failures/${failureId}/skip-auto-remind`, payload).then((data) => data as unknown as AdminAiResumeFailureItem)
+}
+
 export function escalateAdminAiResumeFailure(failureId: string, payload: AdminAiResumeFailureActionPayload) {
   return request.post(`/admin/ai/resume/failures/${failureId}/escalate`, payload).then((data) => data as unknown as AdminAiResumeFailureItem)
 }

@@ -271,6 +271,24 @@
                 </PermissionButton>
                 <PermissionButton
                   link
+                  type="primary"
+                  action="action.system.ai-resume.resolve"
+                  :disabled="!canPerformFailureAction('manualTakeover', row)"
+                  @click="openFailureAction('manualTakeover', row)"
+                >
+                  手工接管
+                </PermissionButton>
+                <PermissionButton
+                  link
+                  type="info"
+                  action="action.system.ai-resume.resolve"
+                  :disabled="!canPerformFailureAction('skipAutoRemind', row)"
+                  @click="openFailureAction('skipAutoRemind', row)"
+                >
+                  跳过催办
+                </PermissionButton>
+                <PermissionButton
+                  link
                   action="action.system.ai-resume.review"
                   :disabled="!canPerformFailureAction('review', row)"
                   @click="openFailureAction('review', row)"
@@ -404,6 +422,24 @@
                 </PermissionButton>
                 <PermissionButton
                   link
+                  type="primary"
+                  action="action.system.ai-resume.resolve"
+                  :disabled="!canPerformFailureAction('manualTakeover', row)"
+                  @click="openFailureAction('manualTakeover', row)"
+                >
+                  手工接管
+                </PermissionButton>
+                <PermissionButton
+                  link
+                  type="info"
+                  action="action.system.ai-resume.resolve"
+                  :disabled="!canPerformFailureAction('skipAutoRemind', row)"
+                  @click="openFailureAction('skipAutoRemind', row)"
+                >
+                  跳过催办
+                </PermissionButton>
+                <PermissionButton
+                  link
                   action="action.system.ai-resume.review"
                   :disabled="!canPerformFailureAction('review', row)"
                   @click="openFailureAction('review', row)"
@@ -474,6 +510,8 @@
               <el-option label="分派处理人" value="ai_resume_assign" />
               <el-option label="确认接手" value="ai_resume_acknowledge" />
               <el-option label="人工催办" value="ai_resume_remind" />
+              <el-option label="手工接管" value="ai_resume_manual_takeover" />
+              <el-option label="跳过催办" value="ai_resume_skip_auto_remind" />
               <el-option label="升级处理" value="ai_resume_escalate" />
               <el-option label="忽略" value="ai_resume_ignore" />
               <el-option label="关闭归档" value="ai_resume_close" />
@@ -735,7 +773,7 @@
                   <StatusTag v-bind="getFailureActionTag(note.actionType, note.handlingStatus)" />
                 </div>
                 <p
-                  v-if="note.assignedAdminName || note.assignmentAcknowledgedAt || note.lastRemindedAt || note.escalationRoleName || note.escalationRoleCode"
+                  v-if="note.assignedAdminName || note.assignmentAcknowledgedAt || note.lastRemindedAt || note.manualTakeoverAt || note.autoRemindSkippedAt || note.escalationRoleName || note.escalationRoleCode"
                   class="timeline-item__meta"
                 >
                   {{ formatFailureTimelineMeta(note) }}
@@ -809,8 +847,10 @@ import {
   fetchAdminAiResumeOverview,
   fetchAdminAiResumeSensitiveHits,
   ignoreAdminAiResumeFailure,
+  manualTakeoverAdminAiResumeFailure,
   remindAdminAiResumeFailure,
   reviewAdminAiResumeFailure,
+  skipAutoRemindAdminAiResumeFailure,
   suggestRetryAdminAiResumeFailure,
 } from '@/api/ai'
 import { fetchAdminOperationLogDetail, fetchAdminOperationLogs } from '@/api/system'
@@ -832,7 +872,17 @@ import type {
 import type { AdminOperationLogDetail, AdminOperationLogItem, AdminOperationLogQuery } from '@/types/system'
 import { formatDateTime, maskPhone } from '@/utils/format'
 
-type FailureActionMode = 'assign' | 'acknowledge' | 'remind' | 'review' | 'suggestRetry' | 'close' | 'ignore' | 'escalate'
+type FailureActionMode =
+  | 'assign'
+  | 'acknowledge'
+  | 'remind'
+  | 'manualTakeover'
+  | 'skipAutoRemind'
+  | 'review'
+  | 'suggestRetry'
+  | 'close'
+  | 'ignore'
+  | 'escalate'
 
 const authStore = useAuthStore()
 
@@ -860,7 +910,7 @@ const failureDetailVisible = ref(false)
 const failureDetail = ref<AdminAiResumeFailureItem | null>(null)
 const currentFailure = ref<AdminAiResumeFailureItem | null>(null)
 const actionMode = ref<FailureActionMode>('review')
-const failureActionStatusMap: Record<Exclude<FailureActionMode, 'assign' | 'acknowledge' | 'remind'>, string> = {
+const failureActionStatusMap: Record<Exclude<FailureActionMode, 'assign' | 'acknowledge' | 'remind' | 'manualTakeover' | 'skipAutoRemind'>, string> = {
   review: 'reviewed',
   suggestRetry: 'retry_advised',
   close: 'closed',
@@ -994,6 +1044,12 @@ const actionDialogTitle = computed(() => {
   if (actionMode.value === 'remind') {
     return '人工催办失败样本'
   }
+  if (actionMode.value === 'manualTakeover') {
+    return '手工接管失败样本'
+  }
+  if (actionMode.value === 'skipAutoRemind') {
+    return '跳过自动催办'
+  }
   if (actionMode.value === 'escalate') {
     return '升级处理失败样本'
   }
@@ -1018,6 +1074,12 @@ const actionConfirmText = computed(() => {
   if (actionMode.value === 'remind') {
     return '确认催办'
   }
+  if (actionMode.value === 'manualTakeover') {
+    return '确认接管'
+  }
+  if (actionMode.value === 'skipAutoRemind') {
+    return '确认跳过'
+  }
   if (actionMode.value === 'escalate') {
     return '确认升级'
   }
@@ -1041,6 +1103,12 @@ const actionPlaceholder = computed(() => {
   }
   if (actionMode.value === 'remind') {
     return '请输入催办原因、催办对象感知或后续跟进要求'
+  }
+  if (actionMode.value === 'manualTakeover') {
+    return '请输入接管原因、接管背景或后续处置计划'
+  }
+  if (actionMode.value === 'skipAutoRemind') {
+    return '请输入跳过原因、人工兜底说明或后续处理安排'
   }
   if (actionMode.value === 'escalate') {
     return '请输入升级原因、转人工说明或后续跟进要求'
@@ -1067,6 +1135,8 @@ const actionMeta = computed(() => [
   { label: '签收 SLA', value: formatDateTime(currentFailure.value?.claimDeadlineAt) },
   { label: '最近通知', value: formatDateTime(currentFailure.value?.notificationSentAt) },
   { label: '最近回执', value: formatDateTime(currentFailure.value?.notificationReceiptAt) },
+  { label: '手工接管', value: formatFailureManualTakeoverValue(currentFailure.value) },
+  { label: '跳过催办', value: formatFailureSkipAutoRemindValue(currentFailure.value) },
   { label: '最近催办', value: formatFailureReminderValue(currentFailure.value) },
   { label: '升级目标', value: currentFailure.value?.escalationRoleName || currentFailure.value?.escalationRoleCode || '未设置' },
 ])
@@ -1103,6 +1173,8 @@ const failureDetailBlocks = computed(() => {
     { label: 'SLA 状态', value: getFailureSlaTag(failureDetail.value.slaStatus).label },
     { label: '最近通知', value: formatDateTime(failureDetail.value.notificationSentAt) },
     { label: '最近回执', value: formatDateTime(failureDetail.value.notificationReceiptAt) },
+    { label: '手工接管', value: formatFailureManualTakeoverValue(failureDetail.value) },
+    { label: '跳过催办', value: formatFailureSkipAutoRemindValue(failureDetail.value) },
     { label: '签收时间', value: formatDateTime(failureDetail.value.assignmentAcknowledgedAt) },
     { label: '签收 SLA', value: formatDateTime(failureDetail.value.claimDeadlineAt) },
     { label: '最近催办', value: formatFailureReminderValue(failureDetail.value) },
@@ -1222,6 +1294,12 @@ function getFailureReceiptTag(status?: string | null) {
 }
 
 function getFailureAutoRemindTag(status?: string | null) {
+  if (status === 'manual_takeover') {
+    return { label: '手工接管', tone: 'success' as const }
+  }
+  if (status === 'skipped') {
+    return { label: '已跳过', tone: 'info' as const }
+  }
   if (status === 'completed') {
     return { label: '已完成', tone: 'success' as const }
   }
@@ -1263,6 +1341,12 @@ function getFailureActionTag(actionType?: string | null, handlingStatus?: string
   if (actionType === 'remind') {
     return { label: '已催办', tone: 'warning' as const }
   }
+  if (actionType === 'manual_takeover') {
+    return { label: '手工接管', tone: 'success' as const }
+  }
+  if (actionType === 'skip_auto_remind') {
+    return { label: '跳过催办', tone: 'info' as const }
+  }
   return getFailureHandlingTag(handlingStatus)
 }
 
@@ -1281,6 +1365,12 @@ function getGovernanceOperationLabel(operationCode?: string | null) {
   }
   if (operationCode === 'ai_resume_remind') {
     return '人工催办'
+  }
+  if (operationCode === 'ai_resume_manual_takeover') {
+    return '手工接管'
+  }
+  if (operationCode === 'ai_resume_skip_auto_remind') {
+    return '跳过催办'
   }
   if (operationCode === 'ai_resume_escalate') {
     return '升级处理'
@@ -1323,6 +1413,12 @@ function formatFailureTimelineMeta(note: NonNullable<AdminAiResumeFailureItem['h
     const reminderOperator = note.lastRemindedByAdminName || note.lastRemindedByAdminId || '--'
     parts.push(`催办：${formatDateTime(note.lastRemindedAt)} / ${reminderOperator} / ${note.reminderCount ?? 0} 次`)
   }
+  if (note.manualTakeoverAt) {
+    parts.push(`接管：${formatDateTime(note.manualTakeoverAt)} / ${note.manualTakeoverByAdminName || note.manualTakeoverByAdminId || '--'}`)
+  }
+  if (note.autoRemindSkippedAt) {
+    parts.push(`跳过催办：${formatDateTime(note.autoRemindSkippedAt)} / ${note.autoRemindSkippedByAdminName || note.autoRemindSkippedByAdminId || '--'}`)
+  }
   const escalationRole = note.escalationRoleName || note.escalationRoleCode
   if (escalationRole) {
     parts.push(`升级目标：${escalationRole}`)
@@ -1364,6 +1460,20 @@ function formatFailureReminderValue(row?: AdminAiResumeFailureItem | null) {
 
 function formatFailureReminder(row: AdminAiResumeFailureItem) {
   return `催办 ${row.reminderCount ?? 0} 次 · ${row.lastRemindedAt ? formatDateTime(row.lastRemindedAt) : '未催办'}`
+}
+
+function formatFailureManualTakeoverValue(row?: AdminAiResumeFailureItem | null) {
+  if (!row?.manualTakeoverAt) {
+    return '未接管'
+  }
+  return `${formatDateTime(row.manualTakeoverAt)} · ${row.manualTakeoverByAdminName || row.manualTakeoverByAdminId || '--'}`
+}
+
+function formatFailureSkipAutoRemindValue(row?: AdminAiResumeFailureItem | null) {
+  if (!row?.autoRemindSkippedAt) {
+    return '未跳过'
+  }
+  return `${formatDateTime(row.autoRemindSkippedAt)} · ${row.autoRemindSkippedByAdminName || row.autoRemindSkippedByAdminId || '--'}`
 }
 
 function buildFailureQuery(): AdminAiResumeFailureQuery {
@@ -1418,6 +1528,20 @@ function canPerformFailureAction(mode: FailureActionMode, row: AdminAiResumeFail
     return !isFailureTerminal(currentStatus)
       && Boolean(row.assignedAdminId)
       && !row.assignmentAcknowledgedAt
+  }
+  if (mode === 'manualTakeover') {
+    return !isFailureTerminal(currentStatus)
+      && Boolean(row.assignedAdminId)
+      && (
+        row.assignedAdminId !== authStore.session?.adminUserId
+        || !row.assignmentAcknowledgedAt
+      )
+  }
+  if (mode === 'skipAutoRemind') {
+    return !isFailureTerminal(currentStatus)
+      && Boolean(row.assignedAdminId)
+      && !row.assignmentAcknowledgedAt
+      && row.autoRemindStage !== 'skipped'
   }
   const targetStatus = failureActionStatusMap[mode]
   return (failureTransitionMap[currentStatus] || []).includes(targetStatus)
@@ -1588,6 +1712,12 @@ async function submitFailureAction() {
     } else if (actionMode.value === 'remind') {
       await remindAdminAiResumeFailure(currentFailure.value.failureId, { reason })
       ElMessage.success('失败样本已人工催办')
+    } else if (actionMode.value === 'manualTakeover') {
+      await manualTakeoverAdminAiResumeFailure(currentFailure.value.failureId, { reason })
+      ElMessage.success('失败样本已手工接管')
+    } else if (actionMode.value === 'skipAutoRemind') {
+      await skipAutoRemindAdminAiResumeFailure(currentFailure.value.failureId, { reason })
+      ElMessage.success('失败样本已跳过自动催办')
     } else if (actionMode.value === 'review') {
       await reviewAdminAiResumeFailure(currentFailure.value.failureId, { reason })
       ElMessage.success('失败样本已标记为人工复核')
