@@ -18,7 +18,7 @@
       type="warning"
       :closable="false"
       title="存在未登记权限码"
-      description="以下权限码未进入当前权限矩阵 registry，提交时会继续保留，避免保存时被静默丢失。"
+      description="以下权限码未进入当前权限矩阵 registry，提交时会保留，避免保存时被静默丢失。"
       show-icon
     />
 
@@ -160,44 +160,68 @@ function setExpanded(expanded: boolean) {
 <style scoped lang="scss">
 .permission-editor {
   display: grid;
-  gap: 12px;
+  gap: 6px;
 }
 
 .toolbar {
   display: grid;
-  gap: 12px;
+  gap: 6px;
 }
 
 .toolbar-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px 6px;
   align-items: center;
 }
 
 .unknown-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px 6px;
   align-items: center;
 }
 
 .permission-tree {
-  padding: 12px;
+  padding: 8px 10px;
   border: 1px solid var(--kp-border);
-  border-radius: 16px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.7);
 }
 
 .tree-node {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px;
   align-items: center;
 
   code {
     color: var(--kp-text-secondary);
-    font-size: 12px;
+    font-size: 10px;
   }
+}
+
+:deep(.toolbar .el-input__wrapper) {
+  min-height: 36px;
+  border-radius: 14px;
+}
+
+:deep(.toolbar-actions .el-tag),
+:deep(.unknown-list .el-tag) {
+  min-height: 20px;
+  padding-inline: 8px;
+  font-size: 11px;
+}
+
+:deep(.toolbar-actions .el-button),
+:deep(.unknown-list .el-button) {
+  min-height: 20px;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+:deep(.permission-tree .el-tree-node__content) {
+  min-height: 28px;
+  height: 28px;
 }
 </style>

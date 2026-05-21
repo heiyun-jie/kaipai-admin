@@ -68,16 +68,4 @@ export interface RefundRejectPayload {
   auditRemark: string
 }
 
-export interface RefundOperateLogQuery {
-  pageNo: number
-  pageSize: number
-  refundOrderId?: number
-  refundNo?: string
-  operatorId?: number
-  actionType?: string
-  dateFrom?: string
-  dateTo?: string
-}
-
 export type RefundOrderPageResult = PageResult<RefundOrderItem>
-export type RefundOperateLogPageResult = PageResult<RefundOperateLogItem>

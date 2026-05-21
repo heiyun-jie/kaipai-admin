@@ -1,5 +1,32 @@
 <template>
   <PageContainer>
+    <section class="console-overview">
+      <article class="console-overview-card console-overview-card--dark">
+        <div class="console-overview-card__head">
+          <p>RECRUIT / PROJECT</p>
+          <span>LIVE</span>
+        </div>
+        <strong>{{ total }} 个项目</strong>
+        <small>当前页回看剧组项目真实落库和状态处置。</small>
+      </article>
+      <article class="console-overview-card">
+        <div class="console-overview-card__head">
+          <p>PROJECT FILTER</p>
+          <span>FOCUS</span>
+        </div>
+        <strong>{{ filters.projectId ?? '全部项目' }}</strong>
+        <small>按项目、剧组用户和城市快速定位招募主链。</small>
+      </article>
+      <article class="console-overview-card">
+        <div class="console-overview-card__head">
+          <p>STATUS</p>
+          <span>STATE</span>
+        </div>
+        <strong>{{ filters.status === 1 ? '进行中' : filters.status === 2 ? '已结束' : '全部状态' }}</strong>
+        <small>项目状态沿当前治理模型执行。</small>
+      </article>
+    </section>
+
     <FilterPanel description="按项目 ID、剧组用户、状态和关键词筛选，优先验证真实剧组数据是否已切到后端。">
       <el-form :model="filters" inline>
         <el-form-item label="项目 ID">
@@ -28,22 +55,29 @@
     </FilterPanel>
 
     <el-card class="table-card" shadow="never">
+      <div class="table-header">
+        <div>
+          <p class="table-header__eyebrow">PROJECT FEED / 剧组项目</p>
+          <h3>项目清单</h3>
+        </div>
+        <span class="table-header__hint">围绕当前项目、剧组、角色数和联系人信息回看真实招募项目，不扩展新的项目台账能力。</span>
+      </div>
       <el-table :data="rows" v-loading="loading">
         <el-table-column prop="projectId" label="项目 ID" min-width="120" />
         <el-table-column label="项目" min-width="280">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.title || '--' }}</strong>
               <span>{{ row.description || '未补简介' }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column label="剧组" min-width="220">
           <template #default="{ row }">
-            <div class="stack-cell">
-              <strong>{{ row.companyName || '--' }}</strong>
+            <StackCell>
+              <strong>{{ row.crewName || '--' }}</strong>
               <span>用户 {{ row.crewUserId ?? '--' }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column label="状态" min-width="110">
@@ -56,23 +90,22 @@
         <el-table-column prop="roleCount" label="角色数" min-width="90" />
         <el-table-column label="联系人" min-width="180">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.contactName || '--' }}</strong>
               <span>{{ row.contactPhone || '--' }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column prop="sourceUpdatedAt" label="最近回写" min-width="180" />
         <el-table-column label="操作" fixed="right" min-width="260">
           <template #default="{ row }">
-            <div class="table-actions">
+            <TableActions>
               <el-button link type="primary" @click="openDetail(row)">查看详情</el-button>
               <PermissionButton
                 v-if="row.status !== 1"
                 link
                 type="success"
                 action="action.recruit.project.status"
-                :fallback-permissions="projectActionFallbacks"
                 hide-if-denied
                 @click="openProjectStatus(row, 1)"
               >
@@ -83,18 +116,17 @@
                 link
                 type="danger"
                 action="action.recruit.project.status"
-                :fallback-permissions="projectActionFallbacks"
                 hide-if-denied
                 @click="openProjectStatus(row, 2)"
               >
                 结束项目
               </PermissionButton>
-            </div>
+            </TableActions>
           </template>
         </el-table-column>
       </el-table>
       <div class="pager">
-        <el-pagination
+        <AdminPager
           v-model:current-page="filters.pageNo"
           v-model:page-size="filters.pageSize"
           layout="total, sizes, prev, pager, next"
@@ -106,14 +138,22 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" title="项目详情" size="760px">
+    <AdminDetailDrawer v-model="detailVisible" title="项目详情" size="760px" destroy-on-close>
       <div v-if="detail" class="detail-layout">
+        <section class="drawer-hero">
+          <div>
+            <p>PROJECT DETAIL / 项目详情</p>
+            <strong>{{ detail.title || '剧组项目详情' }}</strong>
+            <span>{{ detail.crewName || '--' }} · 用户 {{ detail.crewUserId ?? '--' }}</span>
+          </div>
+          <StatusTag v-bind="recruitProjectStatusMap[detail.status || 1] || recruitProjectStatusMap[1]" />
+        </section>
+
         <div class="detail-actions">
           <PermissionButton
             v-if="detail.status !== 1"
             type="success"
             action="action.recruit.project.status"
-            :fallback-permissions="projectActionFallbacks"
             hide-if-denied
             @click="openProjectStatus(detail, 1)"
           >
@@ -123,21 +163,20 @@
             v-if="detail.status !== 2"
             type="danger"
             action="action.recruit.project.status"
-            :fallback-permissions="projectActionFallbacks"
             hide-if-denied
             @click="openProjectStatus(detail, 2)"
           >
             结束项目
           </PermissionButton>
         </div>
-        <div class="detail-grid">
-          <div v-for="item in detailBlocks" :key="item.label" class="detail-block">
+        <DetailGrid>
+          <DetailBlock v-for="item in detailBlocks" :key="item.label">
             <span>{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
-          </div>
-        </div>
+          </DetailBlock>
+        </DetailGrid>
       </div>
-    </el-drawer>
+    </AdminDetailDrawer>
 
     <AuditConfirmDialog
       v-model="projectStatusVisible"
@@ -165,8 +204,8 @@ import StatusTag from '@/components/business/StatusTag.vue'
 import AuditConfirmDialog from '@/components/dialogs/AuditConfirmDialog.vue'
 import { recruitProjectStatusMap } from '@/constants/status'
 import type { AdminRecruitProjectItem, AdminRecruitProjectQuery } from '@/types/recruit'
-
-const projectActionFallbacks = ['page.system.admin-users']
+import AdminPager from '@/components/business/AdminPager.vue'
+import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
 
 const loading = ref(false)
 const rows = ref<AdminRecruitProjectItem[]>([])
@@ -195,8 +234,8 @@ const detailBlocks = computed(() => {
   return [
     { label: '项目 ID', value: detail.value.projectId ?? '--' },
     { label: '剧组用户 ID', value: detail.value.crewUserId ?? '--' },
-    { label: '公司档案 ID', value: detail.value.companyProfileId ?? '--' },
-    { label: '剧组名称', value: detail.value.companyName || '--' },
+    { label: '团队档案 ID', value: detail.value.crewProfileId ?? '--' },
+    { label: '剧组名称', value: detail.value.crewName || '--' },
     { label: '项目名称', value: detail.value.title || '--' },
     { label: '项目状态', value: (recruitProjectStatusMap[detail.value.status || 1] || recruitProjectStatusMap[1]).label },
     { label: '项目类型', value: detail.value.type || '--' },
@@ -227,7 +266,7 @@ const projectStatusMeta = computed(() => [
 
 const projectStatusSummary = computed(() =>
   projectStatusTarget.value === 2
-    ? '结束项目会同步收口该项目下仍未结束的角色，避免演员端继续看到失效招募。'
+    ? '结束项目会同步收口该项目下仍未结束的角色，避免演员端看到失效招募。'
     : '恢复进行只会回写项目状态，不会自动恢复该项目下已暂停或已结束的角色。',
 )
 
@@ -293,76 +332,10 @@ function resetFilters() {
   loadList()
 }
 
-onMounted(loadList)
+onMounted(() => {
+  loadList()
+})
 </script>
 
 <style scoped lang="scss">
-.table-card {
-  border: 1px solid var(--kp-border);
-  background: var(--kp-surface);
-}
-
-.stack-cell {
-  display: grid;
-  gap: 4px;
-
-  strong {
-    font-size: 13px;
-  }
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-    line-height: 1.5;
-  }
-}
-
-.table-actions,
-.detail-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
-}
-
-.detail-layout {
-  display: grid;
-  gap: 16px;
-}
-
-.detail-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-block {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(47, 36, 27, 0.05);
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 14px;
-    line-height: 1.6;
-    word-break: break-word;
-  }
-}
-
-@media (max-width: 820px) {
-  .detail-grid {
-    grid-template-columns: 1fr;
-  }
-}
 </style>

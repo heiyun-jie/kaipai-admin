@@ -52,7 +52,9 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     try {
-      session.value = await fetchAdminSession()
+      const nextSession = await fetchAdminSession()
+      session.value = nextSession
+      setStoredSession(nextSession)
     } catch {
       logout()
     } finally {

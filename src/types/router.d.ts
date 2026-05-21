@@ -6,7 +6,7 @@ declare module 'vue-router' {
     requiresAuth?: boolean;
     pageCode?: string;
     pagePermission?: string;
-    pagePermissionFallbacks?: string[];
+    pagePermissions?: string[];
     sectionKey?: string;
     sectionTitle?: string;
     sectionIcon?: string;
@@ -14,7 +14,6 @@ declare module 'vue-router' {
     itemTitle?: string;
     itemOrder?: number;
     hiddenInMenu?: boolean;
-    placeholder?: boolean;
   }
 }
 

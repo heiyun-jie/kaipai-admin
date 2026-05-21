@@ -6,10 +6,28 @@
       </PermissionButton>
     </template>
 
-    <FilterPanel description="按账号、姓名、手机号、状态和角色筛选后台成员。">
+    <el-card class="table-card admin-users-shell-card" shadow="never">
+      <div class="admin-users-shell-card__stats">
+        <article class="admin-users-shell-pill admin-users-shell-pill--dark">
+          <span>账号总数</span>
+          <strong>{{ total }}</strong>
+        </article>
+        <article class="admin-users-shell-pill">
+          <span>当前筛选</span>
+          <strong>{{ filters.account || filters.userName || filters.phone || filters.roleCode || '全部账号' }}</strong>
+        </article>
+        <article class="admin-users-shell-pill">
+          <span>当前状态</span>
+          <strong>{{ filters.status === 1 ? '启用中' : filters.status === 2 ? '已禁用' : '全部状态' }}</strong>
+        </article>
+      </div>
+      <p class="admin-users-shell-card__note">当前页只承接后台账号、角色绑定、密码处置与启停用，不扩展额外管理模型。</p>
+    </el-card>
+
+    <FilterPanel class="admin-users-filter-panel" description="按账号、姓名、手机号、状态和角色编码筛选后台成员。">
       <el-form :model="filters" inline>
         <el-form-item label="账号">
-          <el-input v-model="filters.account" placeholder="后台账号" clearable />
+          <el-input v-model="filters.account" placeholder="账号" clearable />
         </el-form-item>
         <el-form-item label="姓名">
           <el-input v-model="filters.userName" placeholder="姓名" clearable />
@@ -18,13 +36,13 @@
           <el-input v-model="filters.phone" placeholder="手机号" clearable />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="filters.status" clearable style="width: 160px">
+          <el-select v-model="filters.status" clearable style="width: 148px">
             <el-option label="启用中" :value="1" />
             <el-option label="已禁用" :value="2" />
           </el-select>
         </el-form-item>
         <el-form-item label="角色编码">
-          <el-input v-model="filters.roleCode" placeholder="例如 super_admin" clearable />
+          <el-input v-model="filters.roleCode" placeholder="super_admin" clearable />
         </el-form-item>
       </el-form>
       <template #actions>
@@ -33,17 +51,21 @@
       </template>
     </FilterPanel>
 
-    <el-card class="table-card" shadow="never">
-      <el-table :data="rows" v-loading="loading">
+    <el-card class="table-card admin-users-table-card" shadow="never">
+      <div class="table-header">
+        <div>
+          <p class="table-header__eyebrow">ADMIN USER / 后台成员</p>
+          <h3>后台账号清单</h3>
+        </div>
+        <span class="table-header__hint">统一查看账号、角色、状态和最近登录，不在这里新增用户侧扩展能力。</span>
+      </div>
+      <el-table class="admin-users-table" :data="rows" v-loading="loading">
         <el-table-column prop="adminUserId" label="ID" min-width="90" />
         <el-table-column prop="account" label="账号" min-width="150" />
         <el-table-column prop="userName" label="姓名" min-width="120" />
         <el-table-column label="联系方式" min-width="220">
           <template #default="{ row }">
-            <div class="stack-cell">
-              <strong>{{ row.phone || '--' }}</strong>
-              <span>{{ row.email || '--' }}</span>
-            </div>
+            <StackCell :title="row.phone || '--'" :subtitle="row.email || '--'" />
           </template>
         </el-table-column>
         <el-table-column label="角色" min-width="220">
@@ -67,9 +89,9 @@
         <el-table-column label="创建时间" min-width="180">
           <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="300">
+        <el-table-column label="操作" fixed="right" width="288">
           <template #default="{ row }">
-            <div class="table-actions">
+            <TableActions>
               <el-button link type="primary" @click="openDetail(row.adminUserId)">查看详情</el-button>
               <PermissionButton link action="action.system.admin-user.edit" @click="openEditDialog(row)">
                 编辑
@@ -98,12 +120,12 @@
               >
                 启用
               </PermissionButton>
-            </div>
+            </TableActions>
           </template>
         </el-table-column>
       </el-table>
       <div class="pager">
-        <el-pagination
+        <AdminPager
           v-model:current-page="filters.pageNo"
           v-model:page-size="filters.pageSize"
           layout="total, sizes, prev, pager, next"
@@ -115,13 +137,23 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" title="后台账号详情" size="620px">
-      <div v-if="detail" class="detail-grid">
-        <div v-for="item in detailBlocks" :key="item.label" class="detail-block">
-          <span>{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
-        </div>
-        <div class="detail-block detail-block--wide">
+    <AdminDetailDrawer
+      v-model="detailVisible"
+      title="后台账号详情"
+      size="580px"
+      destroy-on-close
+      class="admin-users-detail-drawer"
+    >
+      <DetailGrid v-if="detail" :items="detailBlocks" class="admin-users-detail-grid">
+        <section class="drawer-hero">
+          <div>
+            <p>ADMIN USER DETAIL / 账号详情</p>
+            <strong>{{ detail.userName || detail.account || '后台账号详情' }}</strong>
+            <span>{{ detail.account || '--' }} · {{ detail.phone || '--' }}</span>
+          </div>
+          <StatusTag v-bind="adminUserStatusMap[detail.status] || { label: `状态 ${detail.status}`, tone: 'info' }" />
+        </section>
+        <DetailBlock wide>
           <span>角色绑定</span>
           <div class="tag-list">
             <el-tag v-for="role in detail.roles" :key="role.roleCode" effect="plain" :type="role.status === 1 ? undefined : 'warning'">
@@ -129,11 +161,22 @@
             </el-tag>
             <strong v-if="!detail.roles?.length">未绑定角色</strong>
           </div>
-        </div>
-      </div>
-    </el-drawer>
+        </DetailBlock>
+      </DetailGrid>
+    </AdminDetailDrawer>
 
-    <el-dialog v-model="formVisible" :title="formMode === 'create' ? '新建后台账号' : '编辑后台账号'" width="720px" destroy-on-close>
+    <el-dialog
+      v-model="formVisible"
+      :title="formMode === 'create' ? '新建后台账号' : '编辑后台账号'"
+      width="720px"
+      destroy-on-close
+      class="admin-users-action-dialog admin-users-action-dialog--form"
+    >
+      <section class="dialog-intro">
+        <p class="dialog-intro__eyebrow">ADMIN USER / 账号维护</p>
+        <strong>{{ formMode === 'create' ? '创建后台账号' : '编辑后台账号' }}</strong>
+        <p>沿当前后台账号模型维护账号、联系方式和初始角色。</p>
+      </section>
       <el-form ref="formRef" label-position="top" :model="form" :rules="formRules">
         <el-row :gutter="16">
           <el-col :span="12">
@@ -201,7 +244,18 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="bindVisible" title="绑定后台账号角色" width="560px" destroy-on-close>
+    <el-dialog
+      v-model="bindVisible"
+      title="绑定后台账号角色"
+      width="560px"
+      destroy-on-close
+      class="admin-users-action-dialog admin-users-action-dialog--bind"
+    >
+      <section class="dialog-intro">
+        <p class="dialog-intro__eyebrow">ROLE BIND / 角色绑定</p>
+        <strong>更新后台账号角色</strong>
+        <p>这里只调整当前账号与启用角色的绑定关系，不扩展新的授权模型。</p>
+      </section>
       <el-form ref="bindFormRef" label-position="top" :model="bindForm" :rules="bindFormRules">
         <el-form-item label="角色">
           <div class="role-field">
@@ -256,7 +310,18 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="resetVisible" title="重置后台账号密码" width="560px" destroy-on-close>
+    <el-dialog
+      v-model="resetVisible"
+      title="重置后台账号密码"
+      width="560px"
+      destroy-on-close
+      class="admin-users-action-dialog admin-users-action-dialog--reset"
+    >
+      <section class="dialog-intro">
+        <p class="dialog-intro__eyebrow">PASSWORD RESET / 密码重置</p>
+        <strong>重置后台账号密码</strong>
+        <p>沿当前密码重置链路处理。</p>
+      </section>
       <el-form ref="resetFormRef" label-position="top" :model="resetForm" :rules="resetFormRules">
         <el-form-item label="新密码" prop="newPassword">
           <el-input v-model="resetForm.newPassword" type="password" show-password placeholder="请输入新密码" />
@@ -278,6 +343,8 @@
       v-model="statusVisible"
       :title="statusMode === 'enable' ? '确认启用后台账号' : '确认禁用后台账号'"
       :confirm-text="statusMode === 'enable' ? '确认启用' : '确认禁用'"
+      dialog-class="admin-users-status-dialog"
+      width="500px"
       reason-required
       reason-label="操作原因"
       placeholder="请输入操作原因"
@@ -307,6 +374,8 @@ import PageContainer from '@/components/business/PageContainer.vue'
 import PermissionButton from '@/components/business/PermissionButton.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import AuditConfirmDialog from '@/components/dialogs/AuditConfirmDialog.vue'
+import StackCell from '@/components/tables/StackCell.vue'
+import TableActions from '@/components/tables/TableActions.vue'
 import { PERMISSIONS } from '@/constants/permission'
 import { adminUserStatusMap } from '@/constants/status'
 import { usePermissionStore } from '@/stores/permission'
@@ -318,6 +387,8 @@ import type {
   AdminUserCreatePayload,
 } from '@/types/system'
 import { formatDateTime } from '@/utils/format'
+import AdminPager from '@/components/business/AdminPager.vue'
+import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
 
 type FormMode = 'create' | 'edit'
 type StatusMode = 'enable' | 'disable'
@@ -700,22 +771,178 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.table-card {
-  border: 1px solid var(--kp-border);
-  background: var(--kp-surface);
+.admin-users-shell-card :deep(.el-card__body) {
+  padding: 14px 18px 12px;
 }
 
-.stack-cell {
+.admin-users-shell-card__stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-users-shell-pill {
   display: grid;
+  gap: 4px;
+  min-width: 148px;
+  padding: 12px 14px;
+  border: 1px solid rgba(80, 63, 47, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
 
-  strong {
-    font-size: 13px;
-  }
+.admin-users-shell-pill span {
+  color: rgba(47, 36, 27, 0.48);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
 
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
+.admin-users-shell-pill strong {
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.admin-users-shell-pill--dark {
+  background: #221f1c;
+  border-color: rgba(34, 31, 28, 0.92);
+  color: #f6efe6;
+}
+
+.admin-users-shell-pill--dark span {
+  color: rgba(246, 239, 230, 0.58);
+}
+
+.admin-users-shell-card__note {
+  margin: 10px 0 0;
+  color: rgba(47, 36, 27, 0.56);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.admin-users-filter-panel :deep(.el-card__body) {
+  padding: 16px 18px 14px;
+}
+
+.admin-users-filter-panel :deep(.filter-panel__header) {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+}
+
+.admin-users-filter-panel :deep(.filter-panel__header h3) {
+  font-size: 15px;
+}
+
+.admin-users-filter-panel :deep(.filter-panel__header p) {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.admin-users-filter-panel :deep(.filter-panel__body) {
+  gap: 12px;
+}
+
+.admin-users-filter-panel :deep(.el-form--inline) {
+  gap: 10px 14px;
+}
+
+.admin-users-filter-panel :deep(.el-form--inline .el-form-item) {
+  gap: 8px;
+}
+
+.admin-users-filter-panel :deep(.el-form-item__label) {
+  min-height: 40px;
+  font-size: 11px;
+}
+
+.admin-users-filter-panel :deep(.el-form-item__content) {
+  min-width: 152px;
+}
+
+.admin-users-filter-panel :deep(.el-input__wrapper),
+.admin-users-filter-panel :deep(.el-select__wrapper) {
+  min-height: 46px;
+  border-radius: 16px;
+}
+
+.admin-users-table-card :deep(.el-card__body) {
+  padding-top: 16px;
+  padding-bottom: 12px;
+}
+
+.admin-users-table-card :deep(.table-header) {
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.admin-users-table-card :deep(.table-header__hint) {
+  max-width: 340px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.admin-users-table-card :deep(.el-table th.el-table__cell) {
+  padding: 10px 0;
+  font-size: 11px;
+}
+
+.admin-users-table-card :deep(.el-table td.el-table__cell) {
+  padding: 10px 0;
+}
+
+.admin-users-table-card :deep(.el-table .cell) {
+  line-height: 1.42;
+}
+
+.admin-users-table-card :deep(.el-table :is(th, td).el-table-fixed-column--right) {
+  background: #fffbf5 !important;
+}
+
+.admin-users-table-card :deep(.el-table__fixed-right-patch),
+.admin-users-table-card :deep(.el-table th.el-table-fixed-column--right) {
+  background: #f8f3eb !important;
+}
+
+.admin-users-table-card .stack-cell {
+  gap: 3px;
+}
+
+.admin-users-table-card .stack-cell strong {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.admin-users-table-card .stack-cell span {
+  color: rgba(47, 36, 27, 0.5);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.admin-users-table-card .tag-list {
+  gap: 6px;
+}
+
+.admin-users-table-card :deep(.el-table .tag-list .el-tag) {
+  min-height: 26px;
+  padding-inline: 10px;
+  font-size: 12px;
+}
+
+.admin-users-table-card :deep(.el-table .admin-table-actions) {
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.admin-users-table-card :deep(.el-table .admin-table-actions :is(.el-button.is-link, .el-button--link)) {
+  min-height: 22px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.admin-users-table-card .pager {
+  margin-top: 16px;
+  padding-top: 14px;
 }
 
 .tag-list {
@@ -734,44 +961,268 @@ onMounted(() => {
   color: var(--kp-text-secondary);
 }
 
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
+:deep(.admin-users-detail-drawer .el-drawer__header) {
+  margin-bottom: 0;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid rgba(80, 63, 47, 0.08);
 }
 
-.detail-grid {
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+:deep(.admin-users-detail-drawer .el-drawer__title) {
+  font-size: 16px;
+  font-weight: 700;
 }
 
-.detail-block {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(47, 36, 27, 0.05);
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 14px;
-    line-height: 1.6;
-    word-break: break-all;
-  }
+:deep(.admin-users-detail-drawer .el-drawer__body) {
+  padding: 18px 20px 20px;
 }
 
-.detail-block--wide {
+:deep(.admin-users-detail-drawer .el-drawer__close-btn) {
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+}
+
+:deep(.admin-users-detail-drawer .admin-users-detail-grid) {
+  gap: 10px;
+}
+
+:deep(.admin-users-detail-drawer .el-drawer__body .drawer-hero) {
+  align-items: center;
+  gap: 12px;
   grid-column: 1 / -1;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 247, 0.95), rgba(248, 242, 233, 0.9)),
+    rgba(255, 251, 245, 0.92);
 }
 
-@media (max-width: 820px) {
-  .detail-grid {
-    grid-template-columns: 1fr;
+:deep(.admin-users-detail-drawer .el-drawer__body .drawer-hero p) {
+  margin: 0 0 2px;
+  color: rgba(47, 36, 27, 0.42);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+}
+
+:deep(.admin-users-detail-drawer .el-drawer__body .drawer-hero strong) {
+  display: block;
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+:deep(.admin-users-detail-drawer .el-drawer__body .drawer-hero span) {
+  display: block;
+  margin-top: 1px;
+  color: rgba(47, 36, 27, 0.54);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+:deep(.admin-users-detail-drawer .admin-detail-block),
+:deep(.admin-users-detail-drawer .admin-info-block) {
+  align-content: start;
+  gap: 6px;
+  min-height: 70px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 251, 245, 0.78);
+}
+
+:deep(.admin-users-detail-drawer .admin-detail-block span),
+:deep(.admin-users-detail-drawer .admin-info-block span) {
+  color: rgba(47, 36, 27, 0.46);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+:deep(.admin-users-detail-drawer .admin-detail-block strong),
+:deep(.admin-users-detail-drawer .admin-info-block strong) {
+  font-size: 14px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+:deep(.admin-users-detail-drawer .admin-info-block .tag-list) {
+  gap: 6px;
+}
+
+:deep(.admin-users-detail-drawer .admin-info-block .el-tag) {
+  min-height: 28px;
+  padding-inline: 10px;
+  font-size: 12px;
+}
+
+:deep(.admin-users-action-dialog .el-dialog__header) {
+  margin-bottom: 0;
+  padding: 18px 22px 12px;
+}
+
+:deep(.admin-users-action-dialog .el-dialog__title) {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+:deep(.admin-users-action-dialog .el-dialog__body) {
+  padding: 18px 22px 18px;
+}
+
+:deep(.admin-users-action-dialog .el-dialog__footer) {
+  padding: 14px 22px 18px;
+}
+
+:deep(.admin-users-action-dialog .el-dialog__headerbtn) {
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+}
+
+:deep(.admin-users-action-dialog .dialog-intro) {
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 12px 16px;
+  border-radius: 16px;
+}
+
+:deep(.admin-users-action-dialog .dialog-intro__eyebrow) {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+}
+
+:deep(.admin-users-action-dialog .dialog-intro strong) {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+:deep(.admin-users-action-dialog .dialog-intro p) {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+:deep(.admin-users-action-dialog .el-form-item) {
+  margin-bottom: 14px;
+}
+
+:deep(.admin-users-action-dialog .el-form-item__label) {
+  margin-bottom: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+:deep(.admin-users-action-dialog :is(.el-input__wrapper, .el-select__wrapper, .el-date-editor.el-input__wrapper)) {
+  min-height: 44px;
+  border-radius: 14px;
+}
+
+:deep(.admin-users-action-dialog .el-textarea__inner) {
+  min-height: 92px !important;
+  padding: 10px 12px;
+  border-radius: 14px;
+  line-height: 1.55;
+}
+
+:deep(.admin-users-action-dialog .role-field) {
+  gap: 10px;
+}
+
+:deep(.admin-users-action-dialog .role-field .el-alert) {
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
+:deep(.admin-users-action-dialog .role-field .tag-list) {
+  gap: 6px;
+}
+
+:deep(.admin-users-action-dialog .role-field .el-tag) {
+  min-height: 28px;
+  padding-inline: 10px;
+  font-size: 12px;
+}
+
+:deep(.admin-users-status-dialog .el-dialog__header) {
+  margin-bottom: 0;
+  padding: 18px 22px 12px;
+}
+
+:deep(.admin-users-status-dialog .el-dialog__title) {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+:deep(.admin-users-status-dialog .el-dialog__body) {
+  padding: 18px 22px 18px;
+}
+
+:deep(.admin-users-status-dialog .el-dialog__footer) {
+  padding: 14px 22px 18px;
+}
+
+:deep(.admin-users-status-dialog .el-dialog__headerbtn) {
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+}
+
+:deep(.admin-users-status-dialog .dialog-content) {
+  gap: 10px;
+}
+
+:deep(.admin-users-status-dialog .dialog-intro) {
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: 16px;
+}
+
+:deep(.admin-users-status-dialog .dialog-intro__eyebrow) {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+}
+
+:deep(.admin-users-status-dialog .dialog-intro strong) {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+:deep(.admin-users-status-dialog .dialog-intro p) {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+:deep(.admin-users-status-dialog .dialog-meta) {
+  gap: 6px;
+}
+
+:deep(.admin-users-status-dialog .dialog-meta li) {
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
+:deep(.admin-users-status-dialog .dialog-meta span) {
+  font-size: 12px;
+}
+
+:deep(.admin-users-status-dialog .dialog-meta strong) {
+  line-height: 1.35;
+}
+
+:deep(.admin-users-status-dialog .el-textarea__inner) {
+  min-height: 88px !important;
+  padding: 10px 12px;
+  border-radius: 14px;
+  line-height: 1.55;
+}
+
+:deep(.admin-users-status-dialog .dialog-tip) {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 1200px) {
+  .admin-users-shell-pill {
+    min-width: 132px;
   }
 }
 </style>

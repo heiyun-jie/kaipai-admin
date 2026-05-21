@@ -68,21 +68,28 @@
     </el-alert>
 
     <el-card class="table-card" shadow="never">
+      <div class="table-header">
+        <div>
+          <p class="table-header__eyebrow">ELIGIBILITY GOVERNANCE / 资格治理</p>
+          <h3>邀请资格清单</h3>
+        </div>
+        <span class="table-header__hint">围绕资格码、来源、生效时间和策略关联治理当前邀请资格。</span>
+      </div>
       <el-table :data="rows" v-loading="loading">
         <el-table-column prop="grantId" label="资格 ID" min-width="110" />
         <el-table-column label="用户" min-width="180">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.nickname || '--' }}</strong>
               <span>{{ `${row.userId ?? '--'} / ${maskPhone(row.phone)}` }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column prop="grantType" label="资格类型" min-width="150" />
         <el-table-column prop="grantCode" label="资格码" min-width="160" />
         <el-table-column label="状态" min-width="110">
           <template #default="{ row }">
-            <StatusTag v-bind="entitlementStatusMap[row.status || 0] || fallbackStatusTag" />
+            <StatusTag v-bind="resolveEntitlementStatusTag(row.status)" />
           </template>
         </el-table-column>
         <el-table-column label="生效时间" min-width="180">
@@ -93,16 +100,16 @@
         </el-table-column>
         <el-table-column label="来源" min-width="180">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.sourceType || '--' }}</strong>
               <span>{{ row.sourceRefId ?? '--' }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip />
         <el-table-column label="操作" fixed="right" min-width="220">
           <template #default="{ row }">
-            <div class="table-actions">
+            <TableActions>
               <el-button link type="primary" @click="openDetail(row.grantId)">查看详情</el-button>
               <PermissionButton v-if="isActive(row.status)" link action="action.referral.eligibility.extend" @click="openAction('extend', row)">
                 延期
@@ -110,12 +117,12 @@
               <PermissionButton v-if="isActive(row.status)" link type="danger" action="action.referral.eligibility.revoke" @click="openAction('revoke', row)">
                 撤销
               </PermissionButton>
-            </div>
+            </TableActions>
           </template>
         </el-table-column>
       </el-table>
       <div class="pager">
-        <el-pagination
+        <AdminPager
           v-model:current-page="filters.pageNo"
           v-model:page-size="filters.pageSize"
           layout="total, sizes, prev, pager, next"
@@ -127,48 +134,57 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" title="资格详情" size="860px" destroy-on-close>
+    <AdminDetailDrawer v-model="detailVisible" title="资格详情" size="860px" destroy-on-close>
       <div v-loading="detailLoading" class="detail-layout">
+        <section v-if="detail?.grantInfo" class="drawer-hero">
+          <div>
+            <p>ELIGIBILITY DETAIL / 邀请资格</p>
+            <strong>{{ detail.grantInfo.grantCode || '资格详情' }}</strong>
+            <span>{{ detail.grantInfo.userName || detail.grantInfo.userId || '--' }} · {{ detail.grantInfo.grantType || '--' }}</span>
+          </div>
+          <StatusTag v-bind="resolveEntitlementStatusTag(detail.grantInfo.status)" />
+        </section>
+
         <el-card class="detail-card" shadow="never">
           <template #header><h3>资格概览</h3></template>
-          <div class="detail-grid">
-            <div v-for="item in grantBlocks" :key="item.label" class="detail-block">
+          <DetailGrid>
+            <DetailBlock v-for="item in grantBlocks" :key="item.label">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
-            </div>
-          </div>
+            </DetailBlock>
+          </DetailGrid>
         </el-card>
 
         <div class="detail-split">
           <el-card class="detail-card" shadow="never">
             <template #header><h3>来源信息</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in sourceBlocks" :key="item.label" class="detail-block">
+            <DetailGrid>
+              <DetailBlock v-for="item in sourceBlocks" :key="item.label">
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+              </DetailBlock>
+            </DetailGrid>
           </el-card>
 
           <el-card class="detail-card" shadow="never">
             <template #header><h3>关联策略</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in policyBlocks" :key="item.label" class="detail-block">
+            <DetailGrid>
+              <DetailBlock v-for="item in policyBlocks" :key="item.label">
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+              </DetailBlock>
+            </DetailGrid>
           </el-card>
         </div>
 
         <el-card class="detail-card" shadow="never">
           <template #header><h3>关联订单</h3></template>
-          <div class="detail-grid">
-            <div v-for="item in orderBlocks" :key="item.label" class="detail-block">
+          <DetailGrid>
+            <DetailBlock v-for="item in orderBlocks" :key="item.label">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
-            </div>
-          </div>
+            </DetailBlock>
+          </DetailGrid>
         </el-card>
 
         <el-card class="detail-card" shadow="never">
@@ -193,9 +209,14 @@
           </el-table>
         </el-card>
       </div>
-    </el-drawer>
+    </AdminDetailDrawer>
 
     <el-dialog v-model="actionVisible" :title="actionDialogTitle" width="620px" destroy-on-close>
+      <section class="dialog-intro">
+        <p class="dialog-intro__eyebrow">ELIGIBILITY ACTION / 资格处置</p>
+        <strong>{{ actionDialogTitle }}</strong>
+        <p>在当前邀请资格模型内执行手工发放、延期和撤销动作。</p>
+      </section>
       <el-form label-position="top">
         <template v-if="actionMode === 'grant'">
           <el-form-item label="用户 ID">
@@ -264,7 +285,7 @@ import ReferralGovernanceNav from '@/components/business/ReferralGovernanceNav.v
 import StatusTag from '@/components/business/StatusTag.vue'
 import { entitlementStatusMap } from '@/constants/status'
 import {
-  getDashboardContextFallbackSummary,
+  getDashboardContextSummary,
   getDashboardContextTitle,
   readRouteQueryString,
   resolveDashboardRouteSource,
@@ -275,11 +296,13 @@ import type {
   ReferralEligibilityQuery,
 } from '@/types/referral'
 import { formatCurrency, formatDateTime, maskPhone } from '@/utils/format'
+import AdminPager from '@/components/business/AdminPager.vue'
+import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
 
 type ActionMode = 'grant' | 'extend' | 'revoke'
 type DateRangeValue = [string, string] | []
 
-const fallbackStatusTag = { label: '未知', tone: 'info' as const }
+const unknownStatusTag = { label: '未知', tone: 'info' as const }
 
 const loading = ref(false)
 const route = useRoute()
@@ -389,7 +412,7 @@ const dashboardContextSummary = computed(() => {
   if (filters.effectiveFrom && filters.effectiveTo) {
     parts.push(`生效时间 ${formatDateTime(filters.effectiveFrom)} 至 ${formatDateTime(filters.effectiveTo)}`)
   }
-  return parts.join('；') || getDashboardContextFallbackSummary(dashboardContextSource.value)
+  return parts.join('；') || getDashboardContextSummary(dashboardContextSource.value)
 })
 
 const grantBlocks = computed(() => {
@@ -407,7 +430,7 @@ const grantBlocks = computed(() => {
     { label: '有效邀请数', value: info.validInviteCount ?? 0 },
     { label: '资格类型', value: info.grantType || '--' },
     { label: '资格码', value: info.grantCode || '--' },
-    { label: '状态', value: (entitlementStatusMap[info.status || 0] || fallbackStatusTag).label },
+    { label: '状态', value: resolveEntitlementStatusTag(info.status).label },
     { label: '生效时间', value: formatDateTime(info.effectiveTime) },
     { label: '过期时间', value: formatDateTime(info.expireTime) },
     { label: '备注', value: info.remark || '--' },
@@ -428,6 +451,10 @@ const sourceBlocks = computed(() => {
     { label: '关联业务 ID', value: source?.relatedBizId ?? '--' },
   ]
 })
+
+function resolveEntitlementStatusTag(status?: number | null) {
+  return entitlementStatusMap[status || 0] || unknownStatusTag
+}
 
 const policyBlocks = computed(() => {
   const policy = detail.value?.relatedPolicy
@@ -609,11 +636,6 @@ watch(
 </script>
 
 <style scoped lang="scss">
-.table-card,
-.detail-card {
-  border: 1px solid var(--kp-border);
-  background: var(--kp-surface);
-}
 
 .context-alert {
   margin-bottom: 16px;
@@ -626,73 +648,7 @@ watch(
   gap: 12px;
 }
 
-.stack-cell {
-  display: grid;
-
-  strong {
-    font-size: 13px;
-  }
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-}
-
-.table-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
-}
-
-.detail-layout {
-  display: grid;
-  gap: 16px;
-}
-
-.detail-split {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-block {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(47, 36, 27, 0.05);
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 14px;
-    line-height: 1.6;
-    word-break: break-all;
-  }
-}
-
 @media (max-width: 960px) {
-  .detail-split,
-  .detail-grid {
-    grid-template-columns: 1fr;
-  }
-
   .context-alert__content {
     align-items: flex-start;
     flex-direction: column;

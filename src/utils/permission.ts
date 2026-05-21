@@ -1,25 +1,32 @@
 import type { AdminMenuItem } from '@/types/admin'
 
-export function hasPermission(source: string[], target?: string, fallbacks: string[] = []) {
-  if (!target && !fallbacks.length) {
+export function hasPermission(source: string[], target?: string) {
+  if (!target) {
     return true
   }
-  const candidates = [target, ...fallbacks].filter(Boolean) as string[]
-  if (!candidates.length) {
-    return true
+  return source.includes(target)
+}
+
+export function hasAnyPermission(source: string[], targets?: string[]) {
+  if (!targets?.length) {
+    return false
   }
-  return candidates.some((code) => source.includes(code))
+  return targets.some((target) => source.includes(target))
 }
 
 export function filterMenus(menus: AdminMenuItem[], permissions: string[]): AdminMenuItem[] {
   return menus
     .map((item): AdminMenuItem | null => {
       const visibleByMenu = !item.menuPermission || permissions.includes(item.menuPermission)
-      const visibleByPage = hasPermission(permissions, item.pagePermission, item.pagePermissionFallbacks || [])
+      const visibleByPage = item.pagePermission
+        ? hasPermission(permissions, item.pagePermission)
+        : item.anyPagePermissions?.length
+          ? hasAnyPermission(permissions, item.anyPagePermissions)
+          : true
       const children: AdminMenuItem[] | undefined = item.children ? filterMenus(item.children, permissions) : undefined
       const visible =
         visibleByMenu &&
-        (visibleByPage || Boolean(children?.length) || (!item.pagePermission && Boolean(item.route)))
+        (visibleByPage || Boolean(children?.length) || (!item.pagePermission && !item.anyPagePermissions?.length && Boolean(item.route)))
 
       if (!visible) {
         return null

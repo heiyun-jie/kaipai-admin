@@ -6,7 +6,7 @@ export type PermissionModuleKey =
   | 'verify'
   | 'referral'
   | 'recruit'
-  | 'membership'
+  | 'users'
   | 'payment'
   | 'refund'
   | 'content'
@@ -32,7 +32,7 @@ const MODULE_LABELS: Record<PermissionModuleKey, string> = {
   verify: '实名认证',
   referral: '邀请治理',
   recruit: '招募治理',
-  membership: '会员中心',
+  users: '用户管理',
   payment: '订单中心',
   refund: '退款中心',
   content: '页面配置',
@@ -51,14 +51,18 @@ const PAGE_LABELS: Record<string, string> = {
   'page.recruit.projects': '剧组项目',
   'page.recruit.roles': '招募角色',
   'page.recruit.applies': '投递记录',
-  'page.membership.products': '会员产品',
-  'page.membership.accounts': '会员账户',
+  'page.users.index': '业务用户列表',
+  'page.users.detail': '业务用户详情',
   'page.payment.orders': '支付订单',
-  'page.payment.transactions': '支付流水',
   'page.refund.orders': '退款单',
-  'page.refund.logs': '退款日志',
   'page.content.templates': '场景模板',
+  'page.content.publish-logs': '模板发布记录',
+  'page.content.theme-tokens': '主题 Token',
+  'page.content.share-artifacts': '分享产物配置',
+  'page.content.contact-requests': '联系方式申请',
+  'page.content.share-cards': '分享卡治理',
   'page.system.ai-resume-governance': 'AI 简历治理',
+  'page.system.ai-image-providers': 'AI 生图模型配置',
   'page.system.admin-users': '后台账号',
   'page.system.roles': '角色管理',
   'page.system.operation-logs': '操作日志',
@@ -79,18 +83,26 @@ const ACTION_META: PermissionMeta[] = [
   { code: 'action.referral.eligibility.extend', label: '邀请资格延长', category: 'action', moduleKey: 'referral' },
   { code: 'action.recruit.project.status', label: '剧组项目状态校准', category: 'action', moduleKey: 'recruit' },
   { code: 'action.recruit.role.status', label: '招募角色状态校准', category: 'action', moduleKey: 'recruit' },
-  { code: 'action.membership.product.create', label: '新建会员产品', category: 'action', moduleKey: 'membership' },
-  { code: 'action.membership.account.open', label: '手工开通会员', category: 'action', moduleKey: 'membership' },
-  { code: 'action.membership.account.extend', label: '手工延期会员', category: 'action', moduleKey: 'membership' },
-  { code: 'action.membership.account.close', label: '关闭会员', category: 'action', moduleKey: 'membership' },
   { code: 'action.refund.approve', label: '退款审核通过', category: 'action', moduleKey: 'refund' },
   { code: 'action.refund.reject', label: '退款审核拒绝', category: 'action', moduleKey: 'refund' },
   { code: 'action.content.template.create', label: '新建场景模板', category: 'action', moduleKey: 'content' },
   { code: 'action.content.template.edit', label: '编辑场景模板', category: 'action', moduleKey: 'content' },
+  { code: 'action.content.template.enable', label: '启用场景模板', category: 'action', moduleKey: 'content' },
+  { code: 'action.content.template.disable', label: '停用场景模板', category: 'action', moduleKey: 'content' },
+  { code: 'action.content.template.sort', label: '调整场景模板排序', category: 'action', moduleKey: 'content' },
   { code: 'action.content.template.publish', label: '发布模板', category: 'action', moduleKey: 'content' },
   { code: 'action.content.template.rollback', label: '回滚模板', category: 'action', moduleKey: 'content' },
+  { code: 'action.content.theme.edit', label: '编辑主题 Token', category: 'action', moduleKey: 'content' },
+  { code: 'action.content.artifact.edit', label: '编辑分享产物配置', category: 'action', moduleKey: 'content' },
+  { code: 'action.content.contact-request.approve', label: '同意联系方式申请', category: 'action', moduleKey: 'content' },
+  { code: 'action.content.contact-request.reject', label: '拒绝联系方式申请', category: 'action', moduleKey: 'content' },
   { code: 'action.system.ai-resume.review', label: 'AI 失败样本人工复核', category: 'action', moduleKey: 'system' },
   { code: 'action.system.ai-resume.resolve', label: 'AI 失败样本异常处理', category: 'action', moduleKey: 'system' },
+  { code: 'action.system.ai-image-provider.update', label: 'AI 生图 provider 配置编辑', category: 'action', moduleKey: 'system' },
+  { code: 'action.system.ai-image-provider.secret.update', label: 'AI 生图 provider 密钥修改', category: 'action', moduleKey: 'system' },
+  { code: 'action.system.ai-image-provider.secret.view', label: 'AI 生图 provider 密钥查看', category: 'action', moduleKey: 'system' },
+  { code: 'action.system.ai-image-provider.activate', label: 'AI 生图主模型切换', category: 'action', moduleKey: 'system' },
+  { code: 'action.system.ai-image-provider.test', label: 'AI 生图 provider 测试', category: 'action', moduleKey: 'system' },
   { code: 'action.system.admin-user.create', label: '新建后台账号', category: 'action', moduleKey: 'system' },
   { code: 'action.system.admin-user.edit', label: '编辑后台账号', category: 'action', moduleKey: 'system' },
   { code: 'action.system.admin-user.enable', label: '启用后台账号', category: 'action', moduleKey: 'system' },
@@ -110,7 +122,17 @@ const CATEGORY_LABELS: Record<PermissionCategory, string> = {
   action: '操作权限',
 }
 
-const moduleOrder = adminMenus.map((item) => item.key as PermissionModuleKey)
+const moduleOrder: PermissionModuleKey[] = [
+  'dashboard',
+  'verify',
+  'referral',
+  'recruit',
+  'users',
+  'payment',
+  'refund',
+  'content',
+  'system',
+]
 
 const menuRegistry: PermissionMeta[] = adminMenus
   .filter((item) => item.menuPermission)

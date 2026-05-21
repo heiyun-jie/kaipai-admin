@@ -5,17 +5,17 @@ export const verifyStatusMap: Record<number, { label: string; tone: 'info' | 'wa
   3: { label: '已拒绝', tone: 'danger' },
 }
 
-export const membershipStatusMap: Record<number, { label: string; tone: 'info' | 'warning' | 'success' | 'danger' }> = {
-  0: { label: '未开通', tone: 'info' },
-  1: { label: '生效中', tone: 'success' },
-  2: { label: '已过期', tone: 'warning' },
-  3: { label: '已关闭', tone: 'danger' },
-}
-
 export const templateStatusMap: Record<number, { label: string; tone: 'info' | 'warning' | 'success' | 'danger' }> = {
   0: { label: '草稿', tone: 'info' },
   1: { label: '已发布', tone: 'success' },
   2: { label: '已停用', tone: 'danger' },
+}
+
+export const contactRequestStatusMap: Record<string, { label: string; tone: 'info' | 'warning' | 'success' | 'danger' }> = {
+  none: { label: '未申请', tone: 'info' },
+  pending: { label: '待处理', tone: 'warning' },
+  approved: { label: '已同意', tone: 'success' },
+  rejected: { label: '已拒绝', tone: 'danger' },
 }
 
 export const referralStatusMap: Record<number, { label: string; tone: 'info' | 'warning' | 'success' | 'danger' }> = {
@@ -100,9 +100,3 @@ export const paymentTransactionStatusMap: Record<number, { label: string; tone: 
   1: { label: '成功', tone: 'success' },
   2: { label: '失败', tone: 'danger' },
 }
-
-export const membershipTierOptions = [
-  { label: '基础会员', value: 1 },
-  { label: '进阶会员', value: 2 },
-  { label: '旗舰会员', value: 3 },
-]

@@ -67,23 +67,30 @@
     </el-alert>
 
     <el-card class="table-card" shadow="never">
+      <div class="table-header">
+        <div>
+          <p class="table-header__eyebrow">RISK GOVERNANCE / 异常邀请</p>
+          <h3>异常邀请清单</h3>
+        </div>
+        <span class="table-header__hint">持续围绕邀请码、风险原因、设备命中和复核状态做治理，不引入新的风控业务模块。</span>
+      </div>
       <el-table :data="rows" v-loading="loading">
         <el-table-column prop="referralId" label="邀请记录 ID" min-width="130" />
         <el-table-column prop="inviteCode" label="邀请码" min-width="120" />
         <el-table-column label="邀请人" min-width="160">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.inviterName || '--' }}</strong>
               <span>{{ row.inviterUserId ?? '--' }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column label="被邀请人" min-width="160">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.inviteeName || '--' }}</strong>
               <span>{{ row.inviteeUserId ?? '--' }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column prop="riskReason" label="风险原因" min-width="220" show-overflow-tooltip />
@@ -102,7 +109,7 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="280">
           <template #default="{ row }">
-            <div class="table-actions">
+            <TableActions>
               <el-button link type="primary" @click="openDetail(row.referralId)">查看详情</el-button>
               <PermissionButton
                 v-if="isOperable(row.status, row.riskFlag)"
@@ -130,12 +137,12 @@
               >
                 标记复核完成
               </PermissionButton>
-            </div>
+            </TableActions>
           </template>
         </el-table-column>
       </el-table>
       <div class="pager">
-        <el-pagination
+        <AdminPager
           v-model:current-page="filters.pageNo"
           v-model:page-size="filters.pageSize"
           layout="total, sizes, prev, pager, next"
@@ -147,8 +154,17 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" title="异常邀请详情" size="860px" destroy-on-close>
+    <AdminDetailDrawer v-model="detailVisible" title="异常邀请详情" size="860px" destroy-on-close>
       <div v-loading="detailLoading" class="detail-layout">
+        <section v-if="detail?.recordInfo" class="drawer-hero">
+          <div>
+            <p>RISK DETAIL / 异常邀请</p>
+            <strong>{{ detail.recordInfo.inviteCode || '异常邀请详情' }}</strong>
+            <span>{{ detail.recordInfo.referralId ?? '--' }} · {{ detail.recordInfo.riskReason || '待复核' }}</span>
+          </div>
+          <StatusTag v-bind="referralRiskFlagMap[detail.recordInfo.riskFlag || 0] || referralRiskFlagMap[0]" />
+        </section>
+
         <div v-if="detail?.recordInfo" class="detail-actions">
           <PermissionButton
             v-if="isOperable(detail.recordInfo.status, detail.recordInfo.riskFlag)"
@@ -177,66 +193,66 @@
 
         <el-card class="detail-card" shadow="never">
           <template #header><h3>记录概览</h3></template>
-          <div class="detail-grid">
-            <div v-for="item in recordBlocks" :key="item.label" class="detail-block">
+          <DetailGrid>
+            <DetailBlock v-for="item in recordBlocks" :key="item.label">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
-            </div>
-          </div>
+            </DetailBlock>
+          </DetailGrid>
         </el-card>
 
         <div class="detail-split">
           <el-card class="detail-card" shadow="never">
             <template #header><h3>邀请人</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in inviterBlocks" :key="item.label" class="detail-block">
+            <DetailGrid>
+              <DetailBlock v-for="item in inviterBlocks" :key="item.label">
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+              </DetailBlock>
+            </DetailGrid>
           </el-card>
 
           <el-card class="detail-card" shadow="never">
             <template #header><h3>被邀请人</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in inviteeBlocks" :key="item.label" class="detail-block">
+            <DetailGrid>
+              <DetailBlock v-for="item in inviteeBlocks" :key="item.label">
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+              </DetailBlock>
+            </DetailGrid>
           </el-card>
         </div>
 
         <div class="detail-split">
           <el-card class="detail-card" shadow="never">
             <template #header><h3>风险摘要</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in riskBlocks" :key="item.label" class="detail-block">
+            <DetailGrid>
+              <DetailBlock v-for="item in riskBlocks" :key="item.label">
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+              </DetailBlock>
+            </DetailGrid>
           </el-card>
 
           <el-card class="detail-card" shadow="never">
             <template #header><h3>设备命中摘要</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in deviceBlocks" :key="item.label" class="detail-block">
+            <DetailGrid>
+              <DetailBlock v-for="item in deviceBlocks" :key="item.label">
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+              </DetailBlock>
+            </DetailGrid>
           </el-card>
         </div>
 
         <el-card class="detail-card" shadow="never">
           <template #header><h3>同小时命中摘要</h3></template>
-          <div class="detail-grid">
-            <div v-for="item in sameHourBlocks" :key="item.label" class="detail-block">
+          <DetailGrid>
+            <DetailBlock v-for="item in sameHourBlocks" :key="item.label">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
-            </div>
-          </div>
+            </DetailBlock>
+          </DetailGrid>
         </el-card>
 
         <el-card class="detail-card" shadow="never">
@@ -263,7 +279,7 @@
           </el-table>
         </el-card>
       </div>
-    </el-drawer>
+    </AdminDetailDrawer>
 
     <AuditConfirmDialog
       v-model="actionVisible"
@@ -291,13 +307,15 @@ import StatusTag from '@/components/business/StatusTag.vue'
 import AuditConfirmDialog from '@/components/dialogs/AuditConfirmDialog.vue'
 import { referralRiskFlagMap, referralStatusMap } from '@/constants/status'
 import {
-  getDashboardContextFallbackSummary,
+  getDashboardContextSummary,
   getDashboardContextTitle,
   readRouteQueryString,
   resolveDashboardRouteSource,
 } from '@/utils/dashboard-context'
 import type { ReferralRiskDetail, ReferralRiskItem, ReferralRiskQuery } from '@/types/referral'
 import { formatDateTime, maskPhone, maskText } from '@/utils/format'
+import AdminPager from '@/components/business/AdminPager.vue'
+import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
 
 type RiskActionMode = 'approve' | 'invalidate' | 'resolve'
 type DateRangeValue = [string, string] | []
@@ -345,7 +363,7 @@ const overviewCards = computed(() => {
       badge: '待处理',
       tone: 'warning' as const,
       value: `${pendingCount} 条`,
-      hint: '当前页样本中仍可继续通过、作废或标记完成的异常记录。',
+      hint: '当前页样本中仍可通过、作废或标记完成的异常记录。',
     },
     {
       label: '当前页已处理',
@@ -471,7 +489,7 @@ const dashboardContextSummary = computed(() => {
   if (filters.registeredAtFrom && filters.registeredAtTo) {
     parts.push(`注册时间 ${formatDateTime(filters.registeredAtFrom)} 至 ${formatDateTime(filters.registeredAtTo)}`)
   }
-  return parts.join('；') || getDashboardContextFallbackSummary(dashboardContextSource.value)
+  return parts.join('；') || getDashboardContextSummary(dashboardContextSource.value)
 })
 
 function joinIds(values?: number[] | null) {
@@ -602,11 +620,6 @@ watch(
 </script>
 
 <style scoped lang="scss">
-.table-card,
-.detail-card {
-  border: 1px solid var(--kp-border);
-  background: var(--kp-surface);
-}
 
 .context-alert {
   margin-bottom: 18px;
@@ -619,72 +632,9 @@ watch(
   align-items: center;
 }
 
-.stack-cell {
-  display: grid;
-
-  strong {
-    font-size: 13px;
-  }
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-}
-
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
-}
-
-.detail-layout {
-  display: grid;
-  gap: 16px;
-}
-
-.detail-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.detail-split {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-block {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(47, 36, 27, 0.05);
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 14px;
-    line-height: 1.6;
-    word-break: break-all;
-  }
-}
-
 @media (max-width: 960px) {
-  .context-alert__content,
-  .detail-split,
-  .detail-grid {
-    grid-template-columns: 1fr;
+  .context-alert__content {
+    display: grid;
   }
 }
 </style>

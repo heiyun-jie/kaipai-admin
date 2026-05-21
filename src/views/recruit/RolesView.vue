@@ -1,5 +1,32 @@
 <template>
   <PageContainer>
+    <section class="console-overview">
+      <article class="console-overview-card console-overview-card--dark">
+        <div class="console-overview-card__head">
+          <p>RECRUIT / ROLE</p>
+          <span>LIVE</span>
+        </div>
+        <strong>{{ total }} 个角色</strong>
+        <small>围绕角色真实落库、状态处置和项目关联做治理。</small>
+      </article>
+      <article class="console-overview-card">
+        <div class="console-overview-card__head">
+          <p>ROLE FILTER</p>
+          <span>FOCUS</span>
+        </div>
+        <strong>{{ filters.roleId ?? '全部角色' }}</strong>
+        <small>按角色、项目和剧组收窄招募主链，便于排查状态与投递量。</small>
+      </article>
+      <article class="console-overview-card">
+        <div class="console-overview-card__head">
+          <p>STATUS</p>
+          <span>STATE</span>
+        </div>
+        <strong>{{ filters.status || '全部状态' }}</strong>
+        <small>角色状态按当前 recruiting / paused / closed 三态治理。</small>
+      </article>
+    </section>
+
     <FilterPanel description="按角色、剧组、项目和状态筛选，优先核对写侧创建后的真实落库结果。">
       <el-form :model="filters" inline>
         <el-form-item label="角色 ID">
@@ -29,22 +56,29 @@
     </FilterPanel>
 
     <el-card class="table-card" shadow="never">
+      <div class="table-header">
+        <div>
+          <p class="table-header__eyebrow">ROLE FEED / 招募角色</p>
+          <h3>角色清单</h3>
+        </div>
+        <span class="table-header__hint">回看角色要求、项目 / 剧组归属与状态处置。</span>
+      </div>
       <el-table :data="rows" v-loading="loading">
         <el-table-column prop="roleId" label="角色 ID" min-width="120" />
         <el-table-column label="角色" min-width="260">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.roleName || '--' }}</strong>
               <span>{{ row.requirement || '未补角色要求' }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column label="项目 / 剧组" min-width="240">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.projectTitle || '--' }}</strong>
-              <span>{{ row.companyName || '--' }} / 用户 {{ row.crewUserId ?? '--' }}</span>
-            </div>
+              <span>{{ row.crewName || '--' }} / 用户 {{ row.crewUserId ?? '--' }}</span>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column label="状态" min-width="110">
@@ -54,10 +88,10 @@
         </el-table-column>
         <el-table-column label="条件" min-width="180">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.gender || '不限' }} / {{ formatAgeRange(row) }}</strong>
               <span>{{ row.fee || '--' }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column prop="applyCount" label="投递数" min-width="90" />
@@ -65,14 +99,13 @@
         <el-table-column prop="publishTime" label="发布时间" min-width="180" />
         <el-table-column label="操作" fixed="right" min-width="320">
           <template #default="{ row }">
-            <div class="table-actions">
+            <TableActions>
               <el-button link type="primary" @click="openDetail(row)">查看详情</el-button>
               <PermissionButton
                 v-if="row.status !== 'recruiting'"
                 link
                 type="success"
                 action="action.recruit.role.status"
-                :fallback-permissions="roleActionFallbacks"
                 hide-if-denied
                 @click="openRoleStatus(row, 'recruiting')"
               >
@@ -83,7 +116,6 @@
                 link
                 type="warning"
                 action="action.recruit.role.status"
-                :fallback-permissions="roleActionFallbacks"
                 hide-if-denied
                 @click="openRoleStatus(row, 'paused')"
               >
@@ -94,18 +126,17 @@
                 link
                 type="danger"
                 action="action.recruit.role.status"
-                :fallback-permissions="roleActionFallbacks"
                 hide-if-denied
                 @click="openRoleStatus(row, 'closed')"
               >
                 结束
               </PermissionButton>
-            </div>
+            </TableActions>
           </template>
         </el-table-column>
       </el-table>
       <div class="pager">
-        <el-pagination
+        <AdminPager
           v-model:current-page="filters.pageNo"
           v-model:page-size="filters.pageSize"
           layout="total, sizes, prev, pager, next"
@@ -117,14 +148,21 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" title="角色详情" size="760px">
+    <AdminDetailDrawer v-model="detailVisible" title="角色详情" size="760px" destroy-on-close>
       <div v-if="detail" class="detail-layout">
+        <section class="drawer-hero">
+          <div>
+            <p>ROLE DETAIL / 角色详情</p>
+            <strong>{{ detail.roleName || '角色详情' }}</strong>
+            <span>{{ detail.projectTitle || '--' }} · {{ detail.crewName || '--' }}</span>
+          </div>
+          <StatusTag v-bind="recruitRoleStatusMap[detail.status || 'paused'] || recruitRoleStatusMap.paused" />
+        </section>
         <div class="detail-actions">
           <PermissionButton
             v-if="detail.status !== 'recruiting'"
             type="success"
             action="action.recruit.role.status"
-            :fallback-permissions="roleActionFallbacks"
             hide-if-denied
             @click="openRoleStatus(detail, 'recruiting')"
           >
@@ -134,7 +172,6 @@
             v-if="detail.status !== 'paused'"
             type="warning"
             action="action.recruit.role.status"
-            :fallback-permissions="roleActionFallbacks"
             hide-if-denied
             @click="openRoleStatus(detail, 'paused')"
           >
@@ -144,21 +181,20 @@
             v-if="detail.status !== 'closed'"
             type="danger"
             action="action.recruit.role.status"
-            :fallback-permissions="roleActionFallbacks"
             hide-if-denied
             @click="openRoleStatus(detail, 'closed')"
           >
             结束
           </PermissionButton>
         </div>
-        <div class="detail-grid">
-          <div v-for="item in detailBlocks" :key="item.label" class="detail-block">
+        <DetailGrid>
+          <DetailBlock v-for="item in detailBlocks" :key="item.label">
             <span>{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
-          </div>
-        </div>
+          </DetailBlock>
+        </DetailGrid>
       </div>
-    </el-drawer>
+    </AdminDetailDrawer>
 
     <AuditConfirmDialog
       v-model="roleStatusVisible"
@@ -186,8 +222,8 @@ import StatusTag from '@/components/business/StatusTag.vue'
 import AuditConfirmDialog from '@/components/dialogs/AuditConfirmDialog.vue'
 import { recruitRoleStatusMap } from '@/constants/status'
 import type { AdminRecruitRoleItem, AdminRecruitRoleQuery } from '@/types/recruit'
-
-const roleActionFallbacks = ['page.system.admin-users']
+import AdminPager from '@/components/business/AdminPager.vue'
+import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
 
 const loading = ref(false)
 const rows = ref<AdminRecruitRoleItem[]>([])
@@ -218,7 +254,7 @@ const detailBlocks = computed(() => {
     { label: '剧组用户 ID', value: detail.value.crewUserId ?? '--' },
     { label: '项目 ID', value: detail.value.projectId ?? '--' },
     { label: '项目名称', value: detail.value.projectTitle || '--' },
-    { label: '剧组名称', value: detail.value.companyName || '--' },
+    { label: '剧组名称', value: detail.value.crewName || '--' },
     { label: '角色名称', value: detail.value.roleName || '--' },
     { label: '状态', value: (recruitRoleStatusMap[detail.value.status || 'paused'] || recruitRoleStatusMap.paused).label },
     { label: '性别要求', value: detail.value.gender || '--' },
@@ -274,7 +310,7 @@ const roleStatusSummary = computed(() => {
     return '恢复招募前会校验关联项目是否仍处于进行中，项目已结束的角色不能直接恢复。'
   }
   if (roleStatusTarget.value === 'closed') {
-    return '结束后演员端将不再展示该角色，已存在的投递记录仍保留给后台继续查看。'
+    return '结束后演员端将不再展示该角色，已存在的投递记录仍保留给后台查看。'
   }
   return '暂停后演员端会立即隐藏该角色，但不会删除已有投递记录。'
 })
@@ -358,76 +394,10 @@ function resetFilters() {
   loadList()
 }
 
-onMounted(loadList)
+onMounted(() => {
+  loadList()
+})
 </script>
 
 <style scoped lang="scss">
-.table-card {
-  border: 1px solid var(--kp-border);
-  background: var(--kp-surface);
-}
-
-.stack-cell {
-  display: grid;
-  gap: 4px;
-
-  strong {
-    font-size: 13px;
-  }
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-    line-height: 1.5;
-  }
-}
-
-.table-actions,
-.detail-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
-}
-
-.detail-layout {
-  display: grid;
-  gap: 16px;
-}
-
-.detail-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-block {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(47, 36, 27, 0.05);
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 14px;
-    line-height: 1.6;
-    word-break: break-word;
-  }
-}
-
-@media (max-width: 820px) {
-  .detail-grid {
-    grid-template-columns: 1fr;
-  }
-}
 </style>

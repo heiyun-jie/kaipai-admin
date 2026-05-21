@@ -113,8 +113,8 @@ export interface AdminRoleAiGovernanceMatrixItem {
   hasAiReviewAction: boolean
   hasAiResolveAction: boolean
   aiReady: boolean
-  reliesOnFallback: boolean
-  rolloutStage: 'ai_ready' | 'compat_transition' | 'fallback_only' | 'partial_ai' | 'not_granted' | string
+  operationLogsPermissionGap: boolean
+  permissionStage: 'ai_ready' | 'permission_review' | 'ai_partial' | 'unassigned' | string
   missingPermissions: string[]
 }
 
@@ -122,10 +122,10 @@ export interface AdminRoleAiGovernanceMatrix {
   totalRoleCount: number
   enabledRoleCount: number
   aiReadyRoleCount: number
-  fallbackRoleCount: number
+  operationLogsPermissionGapRoleCount: number
   pendingRoleCount: number
-  fallbackBoundUserCount: number
-  canRetireFallback: boolean
+  operationLogsPermissionGapBoundUserCount: number
+  operationLogsPermissionGapCleared: boolean
   list: AdminRoleAiGovernanceMatrixItem[]
 }
 
@@ -135,16 +135,19 @@ export interface AdminRoleRecruitGovernanceMatrixItem {
   roleName: string
   status: number
   boundUserCount: number
-  hasRecruitMenu: boolean
   hasRecruitProjectsPage: boolean
   hasRecruitRolesPage: boolean
   hasRecruitAppliesPage: boolean
   hasRecruitProjectStatusAction: boolean
   hasRecruitRoleStatusAction: boolean
   hasAdminUsersPage: boolean
+  pageReady: boolean
+  actionReady: boolean
+  pagePermissionGap: boolean
+  actionPermissionGap: boolean
   recruitReady: boolean
-  reliesOnFallback: boolean
-  rolloutStage: 'recruit_ready' | 'compat_transition' | 'fallback_only' | 'partial_recruit' | 'not_granted' | string
+  recruitPermissionGap: boolean
+  permissionStage: 'recruit_ready' | 'permission_review' | 'recruit_partial' | 'unassigned' | string
   missingPermissions: string[]
 }
 
@@ -152,10 +155,16 @@ export interface AdminRoleRecruitGovernanceMatrix {
   totalRoleCount: number
   enabledRoleCount: number
   recruitReadyRoleCount: number
-  fallbackRoleCount: number
+  pageReadyRoleCount: number
+  actionReadyRoleCount: number
+  recruitPermissionGapRoleCount: number
+  pagePermissionGapRoleCount: number
+  actionPermissionGapRoleCount: number
   pendingRoleCount: number
-  fallbackBoundUserCount: number
-  canRetireFallback: boolean
+  recruitPermissionGapBoundUserCount: number
+  pagePermissionGapCleared: boolean
+  actionPermissionGapCleared: boolean
+  recruitPermissionGapCleared: boolean
   list: AdminRoleRecruitGovernanceMatrixItem[]
 }
 

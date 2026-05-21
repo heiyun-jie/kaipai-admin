@@ -29,5 +29,15 @@ export interface DashboardOverview {
   referralRiskPendingCount?: number | null
   refundPendingCount?: number | null
   todayPaymentOrderCount?: number | null
+  activeShareCardCount?: number | null
+  activeShareOwnerCount?: number | null
+  shareViewCount?: number | null
+  uniqueViewerCount?: number | null
+  approvedContactRequestCount?: number | null
+  pendingContactRequestCount?: number | null
+  convertedViewerCount?: number | null
+  classicSceneViewCount?: number | null
+  urbanSceneViewCount?: number | null
+  costumeSceneViewCount?: number | null
   recentItems: DashboardRecentItem[]
 }

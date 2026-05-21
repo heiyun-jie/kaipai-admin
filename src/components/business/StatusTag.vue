@@ -1,13 +1,13 @@
-<template>
-  <span class="status-tag" :class="`status-tag--${tone}`">{{ label }}</span>
-</template>
-
 <script setup lang="ts">
 defineProps<{
   label: string
   tone: 'info' | 'warning' | 'success' | 'danger'
 }>()
 </script>
+
+<template>
+  <span class="status-tag" :data-tone="tone">{{ label }}</span>
+</template>
 
 <style scoped lang="scss">
 .status-tag {
@@ -34,25 +34,25 @@ defineProps<{
   opacity: 0.82;
 }
 
-.status-tag--info {
+.status-tag[data-tone='info'] {
   background: rgba(47, 36, 27, 0.1);
   color: var(--kp-text-secondary);
   border-color: rgba(47, 36, 27, 0.08);
 }
 
-.status-tag--warning {
+.status-tag[data-tone='warning'] {
   background: rgba(196, 122, 40, 0.16);
   color: var(--kp-warning);
   border-color: rgba(196, 122, 40, 0.24);
 }
 
-.status-tag--success {
+.status-tag[data-tone='success'] {
   background: rgba(47, 125, 87, 0.16);
   color: var(--kp-success);
   border-color: rgba(47, 125, 87, 0.24);
 }
 
-.status-tag--danger {
+.status-tag[data-tone='danger'] {
   background: rgba(181, 65, 49, 0.16);
   color: var(--kp-danger);
   border-color: rgba(181, 65, 49, 0.22);

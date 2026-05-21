@@ -1,8 +1,6 @@
 import request from '@/utils/request'
 import type {
   RefundApprovePayload,
-  RefundOperateLogPageResult,
-  RefundOperateLogQuery,
   RefundOrderDetail,
   RefundOrderPageResult,
   RefundOrderQuery,
@@ -23,8 +21,4 @@ export function approveRefundOrder(id: number, payload: RefundApprovePayload) {
 
 export function rejectRefundOrder(id: number, payload: RefundRejectPayload) {
   return request.post(`/admin/refund/${id}/reject`, payload)
-}
-
-export function fetchRefundOperateLogs(params: RefundOperateLogQuery) {
-  return request.get('/admin/refund/logs', { params }).then((data) => data as unknown as RefundOperateLogPageResult)
 }

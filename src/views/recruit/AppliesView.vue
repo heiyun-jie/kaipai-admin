@@ -1,6 +1,33 @@
 <template>
   <PageContainer>
-    <FilterPanel description="按投递、角色、演员和剧组筛选，便于核对 `apply -> role -> project -> company` 的真实串联。">
+    <section class="console-overview">
+      <article class="console-overview-card console-overview-card--dark">
+        <div class="console-overview-card__head">
+          <p>RECRUIT / APPLY</p>
+          <span>LINK</span>
+        </div>
+        <strong>{{ total }} 条投递</strong>
+        <small>聚焦投递与角色、项目、剧组的真实串联结果，不派生新的投递能力。</small>
+      </article>
+      <article class="console-overview-card">
+        <div class="console-overview-card__head">
+          <p>APPLY FILTER</p>
+          <span>FOCUS</span>
+        </div>
+        <strong>{{ filters.applyId ?? '全部投递' }}</strong>
+        <small>按投递、角色、演员和剧组定位当前招募主链的具体节点。</small>
+      </article>
+      <article class="console-overview-card">
+        <div class="console-overview-card__head">
+          <p>STATUS</p>
+          <span>STATE</span>
+        </div>
+        <strong>{{ filters.status === 1 ? '待处理' : filters.status === 2 ? '已通过' : filters.status === 3 ? '已拒绝' : filters.status === 4 ? '已取消' : '全部状态' }}</strong>
+        <small>投递状态沿当前模型展示。</small>
+      </article>
+    </section>
+
+    <FilterPanel description="按投递、角色、演员和剧组筛选，便于核对 `apply -> role -> project -> crew` 的真实串联。">
       <el-form :model="filters" inline>
         <el-form-item label="投递 ID">
           <el-input v-model.number="filters.applyId" placeholder="投递 ID" clearable />
@@ -33,30 +60,37 @@
     </FilterPanel>
 
     <el-card class="table-card" shadow="never">
+      <div class="table-header">
+        <div>
+          <p class="table-header__eyebrow">APPLY FEED / 投递链路</p>
+          <h3>投递清单</h3>
+        </div>
+        <span class="table-header__hint">当前页只回看投递与角色、项目、剧组的链路关系，不扩展新的处理动作。</span>
+      </div>
       <el-table :data="rows" v-loading="loading">
         <el-table-column prop="applyId" label="投递 ID" min-width="120" />
         <el-table-column label="演员" min-width="220">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.actorName || '--' }}</strong>
               <span>用户 {{ row.actorUserId ?? '--' }} / {{ row.actorPhone || '--' }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column label="角色 / 项目" min-width="240">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.roleName || '--' }}</strong>
               <span>{{ row.projectTitle || '--' }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column label="剧组" min-width="220">
           <template #default="{ row }">
-            <div class="stack-cell">
-              <strong>{{ row.companyName || '--' }}</strong>
+            <StackCell>
+              <strong>{{ row.crewName || '--' }}</strong>
               <span>剧组用户 {{ row.crewUserId ?? '--' }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column label="投递状态" min-width="110">
@@ -78,7 +112,7 @@
         </el-table-column>
       </el-table>
       <div class="pager">
-        <el-pagination
+        <AdminPager
           v-model:current-page="filters.pageNo"
           v-model:page-size="filters.pageSize"
           layout="total, sizes, prev, pager, next"
@@ -90,16 +124,24 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" title="投递详情" size="760px">
+    <AdminDetailDrawer v-model="detailVisible" title="投递详情" size="760px" destroy-on-close>
       <div v-if="detail" class="detail-layout">
-        <div class="detail-grid">
-          <div v-for="item in detailBlocks" :key="item.label" class="detail-block">
+        <section class="drawer-hero">
+          <div>
+            <p>APPLY DETAIL / 投递详情</p>
+            <strong>{{ detail.roleName || '投递详情' }}</strong>
+            <span>{{ detail.actorName || '--' }} · {{ detail.projectTitle || '--' }}</span>
+          </div>
+          <StatusTag v-bind="recruitApplyStatusMap[detail.status || 1] || recruitApplyStatusMap[1]" />
+        </section>
+        <DetailGrid>
+          <DetailBlock v-for="item in detailBlocks" :key="item.label">
             <span>{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
-          </div>
-        </div>
+          </DetailBlock>
+        </DetailGrid>
       </div>
-    </el-drawer>
+    </AdminDetailDrawer>
   </PageContainer>
 </template>
 
@@ -111,6 +153,8 @@ import PageContainer from '@/components/business/PageContainer.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import { recruitApplyStatusMap, recruitRoleStatusMap } from '@/constants/status'
 import type { AdminRecruitApplyItem, AdminRecruitApplyQuery } from '@/types/recruit'
+import AdminPager from '@/components/business/AdminPager.vue'
+import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
 
 const loading = ref(false)
 const rows = ref<AdminRecruitApplyItem[]>([])
@@ -139,7 +183,7 @@ const detailBlocks = computed(() => {
     { label: '项目 ID', value: detail.value.projectId ?? '--' },
     { label: '角色名称', value: detail.value.roleName || '--' },
     { label: '项目名称', value: detail.value.projectTitle || '--' },
-    { label: '剧组名称', value: detail.value.companyName || '--' },
+    { label: '剧组名称', value: detail.value.crewName || '--' },
     { label: '剧组用户 ID', value: detail.value.crewUserId ?? '--' },
     { label: '演员名称', value: detail.value.actorName || '--' },
     { label: '演员用户 ID', value: detail.value.actorUserId ?? '--' },
@@ -183,65 +227,4 @@ onMounted(loadList)
 </script>
 
 <style scoped lang="scss">
-.table-card {
-  border: 1px solid var(--kp-border);
-  background: var(--kp-surface);
-}
-
-.stack-cell {
-  display: grid;
-  gap: 4px;
-
-  strong {
-    font-size: 13px;
-  }
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-    line-height: 1.5;
-  }
-}
-
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
-}
-
-.detail-layout {
-  display: grid;
-  gap: 16px;
-}
-
-.detail-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-block {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(47, 36, 27, 0.05);
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 14px;
-    line-height: 1.6;
-    word-break: break-word;
-  }
-}
-
-@media (max-width: 820px) {
-  .detail-grid {
-    grid-template-columns: 1fr;
-  }
-}
 </style>

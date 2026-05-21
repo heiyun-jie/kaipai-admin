@@ -10,7 +10,7 @@
         v-for="item in navItems"
         :key="item.path"
         class="referral-nav__button"
-        :class="{ 'referral-nav__button--active': route.path === item.path }"
+        :data-active="route.path === item.path"
         :type="route.path === item.path ? 'primary' : undefined"
         :plain="route.path !== item.path"
         @click="goTo(item.path)"
@@ -95,7 +95,7 @@ function goTo(path: string) {
   font-weight: 700;
 }
 
-.referral-nav__button--active {
+.referral-nav__button[data-active='true'] {
   box-shadow: 0 10px 22px rgba(196, 122, 40, 0.18);
 }
 

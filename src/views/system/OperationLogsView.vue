@@ -1,5 +1,32 @@
 <template>
   <PageContainer>
+    <section class="console-overview">
+      <article class="console-overview-card console-overview-card--dark">
+        <div class="console-overview-card__head">
+          <p>OPERATION / TRACE</p>
+          <span>LOG</span>
+        </div>
+        <strong>{{ operationLogHeadline }}</strong>
+        <small>{{ operationLogHeadlineDescription }}</small>
+      </article>
+      <article class="console-overview-card">
+        <div class="console-overview-card__head">
+          <p>MODULE</p>
+          <span>FILTER</span>
+        </div>
+        <strong>{{ moduleFilterLabel }}</strong>
+        <small>可按模块或操作码快速收窄当前后台治理范围。</small>
+      </article>
+      <article class="console-overview-card">
+        <div class="console-overview-card__head">
+          <p>RESULT</p>
+          <span>STATE</span>
+        </div>
+        <strong>{{ resultFilterLabel }}</strong>
+        <small>失败记录和成功记录仍走同一条留痕链路，便于统一追查。</small>
+      </article>
+    </section>
+
     <FilterPanel description="按操作人、模块、结果和目标信息筛选后台操作记录。">
       <el-form :model="filters" inline>
         <el-form-item label="后台账号 ID">
@@ -31,6 +58,13 @@
     </FilterPanel>
 
     <el-card class="table-card" shadow="never">
+      <div class="table-header">
+        <div>
+          <p class="table-header__eyebrow">AUDIT FEED / 后台操作留痕</p>
+          <h3>操作日志清单</h3>
+        </div>
+        <span class="table-header__hint">{{ tableHeaderHint }}</span>
+      </div>
       <el-table :data="rows" v-loading="loading">
         <el-table-column prop="operationLogId" label="日志 ID" min-width="110" />
         <el-table-column label="操作人" min-width="150">
@@ -56,9 +90,16 @@
             <el-button link type="primary" @click="openDetail(row.operationLogId)">查看详情</el-button>
           </template>
         </el-table-column>
+        <template #empty>
+          <div class="table-empty">
+            <strong>{{ tableEmptyTitle }}</strong>
+            <p>{{ tableEmptyDescription }}</p>
+            <span v-if="tableEmptyMeta" class="table-empty__meta">{{ tableEmptyMeta }}</span>
+          </div>
+        </template>
       </el-table>
       <div class="pager">
-        <el-pagination
+        <AdminPager
           v-model:current-page="filters.pageNo"
           v-model:page-size="filters.pageSize"
           layout="total, sizes, prev, pager, next"
@@ -70,14 +111,31 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" title="操作日志详情" size="860px">
-      <div v-if="detail" class="detail-layout">
-        <div class="detail-grid">
-          <div v-for="item in detailBlocks" :key="item.label" class="detail-block">
+    <AdminDetailDrawer v-model="detailVisible" title="操作日志详情" size="860px" destroy-on-close>
+      <div v-if="detailLoading" class="detail-empty">
+        <strong>正在加载操作日志详情</strong>
+        <p>当前正在拉取前后快照、请求链路与补充上下文。</p>
+      </div>
+      <div v-else-if="detailError" class="detail-empty">
+        <strong>当前日志详情暂不可用</strong>
+        <p>{{ detailError }}</p>
+      </div>
+      <div v-else-if="detail" class="detail-layout">
+        <section class="drawer-hero">
+          <div>
+            <p>LOG DETAIL / 操作详情</p>
+            <strong>{{ detail.operationCode || '后台操作日志' }}</strong>
+            <span>{{ detail.adminUserName || detail.adminUserId || '--' }} · {{ detail.requestId || '--' }}</span>
+          </div>
+          <StatusTag :label="detail.operationResult === 1 ? '成功' : '失败'" :tone="detail.operationResult === 1 ? 'success' : 'danger'" />
+        </section>
+
+        <DetailGrid>
+          <DetailBlock v-for="item in detailBlocks" :key="item.label">
             <span>{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
-          </div>
-        </div>
+          </DetailBlock>
+        </DetailGrid>
 
         <el-card class="detail-card" shadow="never">
           <template #header><h3>变更前快照</h3></template>
@@ -94,7 +152,7 @@
           <pre class="json-block">{{ detail.extraContextJson || '--' }}</pre>
         </el-card>
       </div>
-    </el-drawer>
+    </AdminDetailDrawer>
   </PageContainer>
 </template>
 
@@ -106,12 +164,18 @@ import PageContainer from '@/components/business/PageContainer.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import type { AdminOperationLogDetail, AdminOperationLogItem, AdminOperationLogQuery } from '@/types/system'
 import { formatDateTime } from '@/utils/format'
+import AdminPager from '@/components/business/AdminPager.vue'
+import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
 
 const loading = ref(false)
 const rows = ref<AdminOperationLogItem[]>([])
 const total = ref(0)
 const detailVisible = ref(false)
 const detail = ref<AdminOperationLogDetail | null>(null)
+const detailLoading = ref(false)
+const detailError = ref('')
+const sourceLoaded = ref(false)
+const sourceError = ref(false)
 
 const filters = reactive<AdminOperationLogQuery>({
   pageNo: 1,
@@ -125,6 +189,54 @@ const filters = reactive<AdminOperationLogQuery>({
   dateFrom: '',
   dateTo: '',
 })
+
+const operationLogHeadline = computed(() => {
+  if (sourceError.value) {
+    return '加载失败'
+  }
+  return `${total.value} 条操作记录`
+})
+
+const operationLogHeadlineDescription = computed(() => {
+  if (sourceError.value) {
+    return '当前操作留痕接口暂不可用，请稍后重试。'
+  }
+  return sourceLoaded.value
+    ? '当前页聚焦后台操作留痕、前后快照和请求链路，不扩展审计模型。'
+    : '正在核对后台操作留痕、前后快照和请求链路。'
+})
+
+const moduleFilterLabel = computed(() => filters.moduleCode || '全部模块')
+
+const resultFilterLabel = computed(() => {
+  if (filters.result === 1) {
+    return '成功'
+  }
+  if (filters.result === 0) {
+    return '失败'
+  }
+  return sourceError.value ? '本次加载失败' : '全部结果'
+})
+
+const tableHeaderHint = computed(() => {
+  if (sourceError.value) {
+    return '当前 operation-logs 接口不可用，请稍后重新查询。'
+  }
+  return '统一查看操作人、模块、请求 ID、结果和目标对象，支撑后台复盘与问题排查。'
+})
+
+const tableEmptyTitle = computed(() => (sourceError.value ? '操作留痕加载失败' : '当前条件下没有操作记录'))
+
+const tableEmptyDescription = computed(() => {
+  if (sourceError.value) {
+    return '当前 /admin/system/operation-logs 暂未返回可用数据，请稍后重新查询。'
+  }
+  return '可以切换操作人、模块、结果或请求 ID，查看其它后台操作留痕。'
+})
+
+const tableEmptyMeta = computed(() => (
+  sourceError.value ? '接口恢复后会展示真实操作记录。' : ''
+))
 
 const detailBlocks = computed(() => {
   if (!detail.value) {
@@ -148,18 +260,34 @@ const detailBlocks = computed(() => {
 
 async function loadLogs() {
   loading.value = true
+  sourceError.value = false
   try {
     const result = await fetchAdminOperationLogs(filters)
-    rows.value = result.list
-    total.value = result.total
+    rows.value = result.list || []
+    total.value = Number(result.total || 0)
+    sourceLoaded.value = true
+  } catch {
+    rows.value = []
+    total.value = 0
+    sourceLoaded.value = false
+    sourceError.value = true
   } finally {
     loading.value = false
   }
 }
 
 async function openDetail(id: number) {
-  detail.value = await fetchAdminOperationLogDetail(id)
   detailVisible.value = true
+  detailLoading.value = true
+  detailError.value = ''
+  detail.value = null
+  try {
+    detail.value = await fetchAdminOperationLogDetail(id)
+  } catch {
+    detailError.value = '当前日志详情接口暂不可用，请稍后再查看前后快照。'
+  } finally {
+    detailLoading.value = false
+  }
 }
 
 function resetFilters() {
@@ -173,53 +301,41 @@ function resetFilters() {
   filters.result = undefined
   filters.dateFrom = ''
   filters.dateTo = ''
-  loadLogs()
+  void loadLogs()
 }
 
-onMounted(loadLogs)
+onMounted(() => {
+  void loadLogs()
+})
 </script>
 
 <style scoped lang="scss">
-.table-card,
-.detail-card {
-  border: 1px solid var(--kp-border);
-  background: var(--kp-surface);
-}
-
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
-}
-
-.detail-layout {
+.table-empty,
+.detail-empty {
   display: grid;
-  gap: 16px;
+  gap: 8px;
+  justify-items: center;
+  padding: 28px 16px 32px;
+  text-align: center;
 }
 
-.detail-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.table-empty strong,
+.detail-empty strong {
+  font-size: 16px;
 }
 
-.detail-block {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(47, 36, 27, 0.05);
+.table-empty p,
+.detail-empty p {
+  margin: 0;
+  max-width: 520px;
+  color: var(--kp-text-secondary);
+  line-height: 1.7;
+}
 
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 14px;
-    line-height: 1.6;
-    word-break: break-all;
-  }
+.table-empty__meta {
+  color: var(--kp-ink-faint);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .json-block {
@@ -229,11 +345,5 @@ onMounted(loadLogs)
   font-family: Consolas, 'Courier New', monospace;
   font-size: 12px;
   line-height: 1.6;
-}
-
-@media (max-width: 820px) {
-  .detail-grid {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

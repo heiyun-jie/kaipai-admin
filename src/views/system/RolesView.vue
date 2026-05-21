@@ -6,7 +6,25 @@
       </PermissionButton>
     </template>
 
-    <FilterPanel description="按角色编码、名称和状态筛选角色，便于权限治理与排查。">
+    <el-card class="table-card roles-shell-card" shadow="never">
+      <div class="roles-shell-card__stats">
+        <article class="roles-shell-pill roles-shell-pill--dark">
+          <span>角色总数</span>
+          <strong>{{ total }}</strong>
+        </article>
+        <article class="roles-shell-pill">
+          <span>当前筛选</span>
+          <strong>{{ filters.roleCode || filters.roleName || '全部角色' }}</strong>
+        </article>
+        <article class="roles-shell-pill">
+          <span>当前状态</span>
+          <strong>{{ filters.status === 1 ? '启用中' : filters.status === 2 ? '已禁用' : '全部状态' }}</strong>
+        </article>
+      </div>
+      <p class="roles-shell-card__note">当前页只承接后台角色、AI 授权收口与招募治理授权，不扩展新的角色体系。</p>
+    </el-card>
+
+    <FilterPanel class="roles-filter-panel" description="按角色编码、名称和状态筛选角色，便于权限治理与排查。">
       <el-form :model="filters" inline>
         <el-form-item label="角色编码">
           <el-input v-model="filters.roleCode" placeholder="角色编码" clearable />
@@ -27,12 +45,12 @@
       </template>
     </FilterPanel>
 
-    <el-card class="table-card" shadow="never">
+    <el-card class="table-card roles-ai-matrix-card" shadow="never">
       <template #header>
         <div class="card-head">
           <div>
             <h3>AI 授权收口矩阵</h3>
-            <p>确认哪些角色已补齐 AI 新页面 / 动作权限，哪些角色仍依赖旧操作日志 fallback。</p>
+            <p>回看各角色的 AI 页面与动作权限覆盖情况，以及当前授权缺口。</p>
           </div>
           <StatusTag v-bind="roleMatrixStatusTag" />
         </div>
@@ -47,44 +65,41 @@
       </div>
 
       <el-alert
-        :type="roleMatrix?.canRetireFallback ? 'success' : 'warning'"
-        :title="roleMatrix?.canRetireFallback ? '启用角色已不再依赖旧日志 fallback' : '仍有启用角色依赖旧日志 fallback'"
+        :type="roleMatrix?.operationLogsPermissionGapCleared ? 'success' : 'warning'"
+        :title="roleMatrix?.operationLogsPermissionGapCleared ? '启用角色已完成 AI 权限收口' : '仍有启用角色存在 AI 权限缺口'"
         :description="roleMatrixAlertText"
         :closable="false"
         show-icon
       />
 
-      <el-table class="matrix-table" :data="roleMatrixRows" v-loading="matrixLoading" empty-text="暂无 AI 授权矩阵数据">
+      <el-table class="matrix-table roles-ai-matrix-table" :data="roleMatrixRows" v-loading="matrixLoading" empty-text="暂无 AI 授权矩阵数据">
         <el-table-column label="角色" min-width="220">
           <template #default="{ row }">
-            <div class="stack-cell">
-              <strong>{{ row.roleName }}</strong>
-              <span>{{ row.roleCode }}</span>
-            </div>
+            <StackCell :title="row.roleName" :subtitle="row.roleCode" />
           </template>
         </el-table-column>
         <el-table-column label="状态" min-width="110">
           <template #default="{ row }">
-            <StatusTag v-bind="adminRoleStatusMap[row.status] || fallbackStatus(row.status)" />
+            <StatusTag v-bind="adminRoleStatusMap[row.status] || resolveRoleStatus(row.status)" />
           </template>
         </el-table-column>
-        <el-table-column label="迁移阶段" min-width="150">
+        <el-table-column label="治理状态" min-width="150">
           <template #default="{ row }">
-            <StatusTag v-bind="getAiGovernanceStageMeta(row.rolloutStage)" />
+            <StatusTag v-bind="getAiGovernanceStageMeta(row.permissionStage)" />
           </template>
         </el-table-column>
         <el-table-column prop="boundUserCount" label="绑定账号" min-width="110" />
-        <el-table-column label="权限覆盖" min-width="360">
+        <el-table-column label="权限覆盖" min-width="340">
           <template #default="{ row }">
             <div class="tag-list">
               <el-tag :type="row.hasAiGovernancePage ? 'success' : 'info'" effect="plain">AI 治理页</el-tag>
               <el-tag :type="row.hasAiReviewAction ? 'success' : 'info'" effect="plain">人工复核</el-tag>
               <el-tag :type="row.hasAiResolveAction ? 'success' : 'info'" effect="plain">建议重试</el-tag>
-              <el-tag :type="row.hasOperationLogsPage ? 'warning' : 'info'" effect="plain">操作日志 fallback</el-tag>
+              <el-tag :type="row.hasOperationLogsPage ? 'warning' : 'info'" effect="plain">操作日志页</el-tag>
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="待补权限" min-width="300">
+        <el-table-column label="权限缺口" min-width="280">
           <template #default="{ row }">
             <div class="tag-list">
               <el-tag v-for="item in row.missingPermissions" :key="item" type="warning" effect="plain">
@@ -96,23 +111,23 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="170">
           <template #default="{ row }">
-            <div class="table-actions">
+            <TableActions>
               <el-button link type="primary" @click="openDetail(row.adminRoleId)">查看详情</el-button>
-              <PermissionButton link action="action.system.role.edit" @click="openEditFromMatrix(row)">
-                补权限
+              <PermissionButton link action="action.system.role.edit" @click="openEditFromMatrix(row.adminRoleId)">
+                编辑授权
               </PermissionButton>
-            </div>
+            </TableActions>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-card class="table-card" shadow="never">
+    <el-card class="table-card roles-recruit-matrix-card" shadow="never">
       <template #header>
         <div class="card-head">
           <div>
             <h3>招募治理授权矩阵</h3>
-            <p>确认哪些角色已补齐招募菜单 / 页面 / 动作权限，哪些角色仍依赖后台账号 fallback。</p>
+            <p>回看各角色的招募页面与动作权限覆盖情况，以及当前授权缺口。</p>
           </div>
           <StatusTag v-bind="recruitMatrixStatusTag" />
         </div>
@@ -127,56 +142,54 @@
       </div>
 
       <el-alert
-        :type="recruitRoleMatrix?.canRetireFallback ? 'success' : 'warning'"
-        :title="recruitRoleMatrix?.canRetireFallback ? '启用角色已不再依赖后台账号 fallback' : '仍有启用角色依赖后台账号 fallback'"
+        :type="recruitRoleMatrix?.recruitPermissionGapCleared ? 'success' : 'warning'"
+        :title="recruitRoleMatrix?.recruitPermissionGapCleared ? '启用角色已完成招募权限收口' : '仍有启用角色存在招募权限缺口'"
         :description="recruitMatrixAlertText"
         :closable="false"
         show-icon
       />
 
       <el-table
-        class="matrix-table"
+        class="matrix-table roles-recruit-matrix-table"
         :data="recruitMatrixRows"
         v-loading="recruitMatrixLoading"
         empty-text="暂无招募授权矩阵数据"
       >
         <el-table-column label="角色" min-width="220">
           <template #default="{ row }">
-            <div class="stack-cell">
-              <strong>{{ row.roleName }}</strong>
-              <span>{{ row.roleCode }}</span>
-            </div>
+            <StackCell :title="row.roleName" :subtitle="row.roleCode" />
           </template>
         </el-table-column>
         <el-table-column label="状态" min-width="110">
           <template #default="{ row }">
-            <StatusTag v-bind="adminRoleStatusMap[row.status] || fallbackStatus(row.status)" />
+            <StatusTag v-bind="adminRoleStatusMap[row.status] || resolveRoleStatus(row.status)" />
           </template>
         </el-table-column>
-        <el-table-column label="迁移阶段" min-width="150">
+        <el-table-column label="治理状态" min-width="150">
           <template #default="{ row }">
-            <StatusTag v-bind="getRecruitGovernanceStageMeta(row.rolloutStage)" />
+            <StatusTag v-bind="getRecruitGovernanceStageMeta(row.permissionStage)" />
           </template>
         </el-table-column>
         <el-table-column prop="boundUserCount" label="绑定账号" min-width="110" />
         <el-table-column label="权限覆盖" min-width="420">
           <template #default="{ row }">
             <div class="tag-list">
-              <el-tag :type="row.hasRecruitMenu ? 'success' : 'info'" effect="plain">招募菜单</el-tag>
               <el-tag :type="row.hasRecruitProjectsPage ? 'success' : 'info'" effect="plain">项目页</el-tag>
               <el-tag :type="row.hasRecruitRolesPage ? 'success' : 'info'" effect="plain">角色页</el-tag>
               <el-tag :type="row.hasRecruitAppliesPage ? 'success' : 'info'" effect="plain">投递页</el-tag>
               <el-tag :type="row.hasRecruitProjectStatusAction ? 'success' : 'info'" effect="plain">项目处置</el-tag>
               <el-tag :type="row.hasRecruitRoleStatusAction ? 'success' : 'info'" effect="plain">角色处置</el-tag>
-              <el-tag :type="row.hasAdminUsersPage ? 'warning' : 'info'" effect="plain">后台账号 fallback</el-tag>
+              <el-tag :type="row.hasAdminUsersPage ? 'warning' : 'info'" effect="plain">后台账号页</el-tag>
+              <el-tag v-if="hasRecruitPagePermissionGap(row)" type="warning" effect="plain">页面授权缺口</el-tag>
+              <el-tag v-if="hasRecruitActionPermissionGap(row)" type="warning" effect="plain">动作授权缺口</el-tag>
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="待补权限" min-width="320">
+        <el-table-column label="权限缺口" min-width="320">
           <template #default="{ row }">
             <div class="tag-list">
               <el-tag v-for="item in row.missingPermissions" :key="item" type="warning" effect="plain">
-                {{ getPermissionDisplayText(item) }}
+                {{ getRecruitMatrixPermissionDisplayText(item) }}
               </el-tag>
               <span v-if="!row.missingPermissions?.length" class="muted">已齐备</span>
             </div>
@@ -184,42 +197,49 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="170">
           <template #default="{ row }">
-            <div class="table-actions">
+            <TableActions>
               <el-button link type="primary" @click="openDetail(row.adminRoleId)">查看详情</el-button>
               <PermissionButton link action="action.system.role.edit" @click="openEditFromMatrix(row.adminRoleId)">
-                补权限
+                编辑授权
               </PermissionButton>
-            </div>
+            </TableActions>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-card class="table-card" shadow="never">
-      <el-table :data="rows" v-loading="loading">
+    <el-card class="table-card roles-directory-card" shadow="never">
+      <div class="table-header">
+        <div>
+          <p class="table-header__eyebrow">ROLE DIRECTORY / 角色目录</p>
+          <h3>角色清单</h3>
+        </div>
+        <span class="table-header__hint">统一回看角色编码、权限概览和状态，不在这里引入新的扩展能力。</span>
+      </div>
+      <el-table class="roles-directory-table" :data="rows" v-loading="loading">
         <el-table-column prop="adminRoleId" label="角色 ID" min-width="100" />
         <el-table-column prop="roleCode" label="角色编码" min-width="160" />
         <el-table-column prop="roleName" label="角色名称" min-width="160" />
         <el-table-column label="状态" min-width="100">
           <template #default="{ row }">
-            <StatusTag v-bind="adminRoleStatusMap[row.status] || fallbackStatus(row.status)" />
+            <StatusTag v-bind="adminRoleStatusMap[row.status] || resolveRoleStatus(row.status)" />
           </template>
         </el-table-column>
         <el-table-column label="权限概览" min-width="220">
           <template #default="{ row }">
-            <div class="stack-cell">
-              <strong>菜单 {{ row.menuPermissions?.length || 0 }} / 页面 {{ row.pagePermissions?.length || 0 }}</strong>
-              <span>操作 {{ row.actionPermissions?.length || 0 }}</span>
-            </div>
+            <StackCell
+              :title="`菜单 ${row.menuPermissions?.length || 0} / 页面 ${row.pagePermissions?.length || 0}`"
+              :subtitle="`操作 ${row.actionPermissions?.length || 0}`"
+            />
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
         <el-table-column label="更新时间" min-width="180">
           <template #default="{ row }">{{ formatDateTime(row.lastUpdate || row.createTime) }}</template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" min-width="280">
+        <el-table-column label="操作" fixed="right" min-width="252">
           <template #default="{ row }">
-            <div class="table-actions">
+            <TableActions>
               <el-button link type="primary" @click="openDetail(row.adminRoleId)">查看详情</el-button>
               <PermissionButton link action="action.system.role.edit" @click="openEditDialog(row)">编辑</PermissionButton>
               <PermissionButton link action="action.system.role.copy" @click="openCopyDialog(row)">复制</PermissionButton>
@@ -241,12 +261,12 @@
               >
                 启用
               </PermissionButton>
-            </div>
+            </TableActions>
           </template>
         </el-table-column>
       </el-table>
-      <div class="pager">
-        <el-pagination
+      <div class="pager roles-directory-pager">
+        <AdminPager
           v-model:current-page="filters.pageNo"
           v-model:page-size="filters.pageSize"
           layout="total, sizes, prev, pager, next"
@@ -258,21 +278,30 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" title="角色详情" size="760px">
+    <AdminDetailDrawer v-model="detailVisible" title="角色详情" size="760px" destroy-on-close class="roles-detail-drawer">
       <div v-if="detail" class="detail-layout">
-        <div class="detail-grid">
-          <div v-for="item in detailBlocks" :key="item.label" class="detail-block">
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
+        <section class="drawer-hero">
+          <div>
+            <p>ROLE DETAIL / 角色详情</p>
+            <strong>{{ detail.roleName || '角色详情' }}</strong>
+            <span>{{ detail.roleCode || '--' }} · {{ detail.createUserName || '--' }}</span>
           </div>
-        </div>
+          <StatusTag v-bind="adminRoleStatusMap[detail.status] || resolveRoleStatus(detail.status)" />
+        </section>
+
+        <DetailGrid :items="detailBlocks" />
 
         <div class="permission-grid">
           <el-card class="detail-card" shadow="never">
             <template #header><h3>菜单权限</h3></template>
             <div class="tag-list">
-              <el-tag v-for="item in detail.menuPermissions || []" :key="item" effect="plain">
-                {{ getPermissionDisplayText(item) }}
+              <el-tag
+                v-for="item in detail.menuPermissions || []"
+                :key="item"
+                effect="plain"
+                :title="getPermissionDisplayText(item)"
+              >
+                {{ getPermissionCompactDisplayText(item) }}
               </el-tag>
               <span v-if="!detail.menuPermissions?.length" class="muted">无</span>
             </div>
@@ -280,8 +309,13 @@
           <el-card class="detail-card" shadow="never">
             <template #header><h3>页面权限</h3></template>
             <div class="tag-list">
-              <el-tag v-for="item in detail.pagePermissions || []" :key="item" effect="plain">
-                {{ getPermissionDisplayText(item) }}
+              <el-tag
+                v-for="item in detail.pagePermissions || []"
+                :key="item"
+                effect="plain"
+                :title="getPermissionDisplayText(item)"
+              >
+                {{ getPermissionCompactDisplayText(item) }}
               </el-tag>
               <span v-if="!detail.pagePermissions?.length" class="muted">无</span>
             </div>
@@ -289,17 +323,33 @@
           <el-card class="detail-card" shadow="never">
             <template #header><h3>操作权限</h3></template>
             <div class="tag-list">
-              <el-tag v-for="item in detail.actionPermissions || []" :key="item" effect="plain">
-                {{ getPermissionDisplayText(item) }}
+              <el-tag
+                v-for="item in detail.actionPermissions || []"
+                :key="item"
+                effect="plain"
+                :title="getPermissionDisplayText(item)"
+              >
+                {{ getPermissionCompactDisplayText(item) }}
               </el-tag>
               <span v-if="!detail.actionPermissions?.length" class="muted">无</span>
             </div>
           </el-card>
         </div>
       </div>
-    </el-drawer>
+    </AdminDetailDrawer>
 
-    <el-dialog v-model="formVisible" :title="formMode === 'create' ? '新建角色' : '编辑角色'" width="860px" destroy-on-close>
+    <el-dialog
+      v-model="formVisible"
+      :title="formMode === 'create' ? '新建角色' : '编辑角色'"
+      width="860px"
+      destroy-on-close
+      class="roles-action-dialog roles-action-dialog--form"
+    >
+      <section class="dialog-intro">
+        <p class="dialog-intro__eyebrow">ROLE EDITOR / 角色维护</p>
+        <strong>{{ formMode === 'create' ? '创建角色' : '编辑角色' }}</strong>
+        <p>沿当前角色权限模型维护菜单、页面和动作权限。</p>
+      </section>
       <el-form label-position="top" :model="form">
         <el-row :gutter="16">
           <el-col :span="12">
@@ -343,13 +393,15 @@
                     class="detail-card ai-governance-bundle-card"
                     shadow="never"
                   >
-                    <div class="stack-cell">
-                      <strong>{{ bundle.label }}</strong>
-                      <span>{{ bundle.description }}</span>
-                    </div>
+                    <StackCell :title="bundle.label" :subtitle="bundle.description" />
                     <div class="tag-list">
-                      <el-tag v-for="item in bundle.codes" :key="item" effect="plain">
-                        {{ getPermissionDisplayText(item) }}
+                      <el-tag
+                        v-for="item in bundle.codes"
+                        :key="item"
+                        effect="plain"
+                        :title="getPermissionDisplayText(item)"
+                      >
+                        {{ getPermissionCompactDisplayText(item) }}
                       </el-tag>
                     </div>
                     <div class="bundle-actions">
@@ -373,13 +425,15 @@
                     class="detail-card ai-governance-bundle-card"
                     shadow="never"
                   >
-                    <div class="stack-cell">
-                      <strong>{{ bundle.label }}</strong>
-                      <span>{{ bundle.description }}</span>
-                    </div>
+                    <StackCell :title="bundle.label" :subtitle="bundle.description" />
                     <div class="tag-list">
-                      <el-tag v-for="item in bundle.codes" :key="item" effect="plain">
-                        {{ getPermissionDisplayText(item) }}
+                      <el-tag
+                        v-for="item in bundle.codes"
+                        :key="item"
+                        effect="plain"
+                        :title="getPermissionDisplayText(item)"
+                      >
+                        {{ getPermissionCompactDisplayText(item) }}
                       </el-tag>
                     </div>
                     <div class="bundle-actions">
@@ -406,7 +460,18 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="copyVisible" title="复制角色" width="560px" destroy-on-close>
+    <el-dialog
+      v-model="copyVisible"
+      title="复制角色"
+      width="560px"
+      destroy-on-close
+      class="roles-action-dialog roles-action-dialog--copy"
+    >
+      <section class="dialog-intro">
+        <p class="dialog-intro__eyebrow">ROLE COPY / 角色复制</p>
+        <strong>复制当前角色</strong>
+        <p>在当前角色权限基线上复制一份新角色，不扩展新的权限模型。</p>
+      </section>
       <el-form label-position="top" :model="copyForm">
         <el-form-item label="新角色编码">
           <el-input v-model="copyForm.roleCode" placeholder="请输入新角色编码" />
@@ -428,6 +493,8 @@
       v-model="statusVisible"
       :title="statusMode === 'enable' ? '确认启用角色' : '确认禁用角色'"
       :confirm-text="statusMode === 'enable' ? '确认启用' : '确认禁用'"
+      dialog-class="roles-status-dialog"
+      width="500px"
       reason-label="操作原因"
       placeholder="请输入操作原因"
       :meta="statusMeta"
@@ -451,11 +518,14 @@ import {
   updateAdminRole,
 } from '@/api/system'
 import FilterPanel from '@/components/business/FilterPanel.vue'
+import DetailGrid from '@/components/business/DetailGrid.vue'
 import PageContainer from '@/components/business/PageContainer.vue'
 import PermissionButton from '@/components/business/PermissionButton.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import AuditConfirmDialog from '@/components/dialogs/AuditConfirmDialog.vue'
 import PermissionTreeEditor from '@/components/forms/PermissionTreeEditor.vue'
+import StackCell from '@/components/tables/StackCell.vue'
+import TableActions from '@/components/tables/TableActions.vue'
 import { PERMISSIONS } from '@/constants/permission'
 import { getPermissionDisplayText } from '@/constants/permission-registry'
 import { adminRoleStatusMap } from '@/constants/status'
@@ -464,9 +534,12 @@ import type {
   AdminRoleItem,
   AdminRoleQuery,
   AdminRoleRecruitGovernanceMatrix,
+  AdminRoleRecruitGovernanceMatrixItem,
   AdminRoleSavePayload,
 } from '@/types/system'
 import { formatDateTime } from '@/utils/format'
+import AdminPager from '@/components/business/AdminPager.vue'
+import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
 
 type FormMode = 'create' | 'edit'
 type StatusMode = 'enable' | 'disable'
@@ -511,11 +584,10 @@ const recruitGovernancePermissionBundles: PermissionBundlePreset[] = [
     key: 'recruit-governance-read',
     label: '招募治理只读',
     description: '适合查看项目、角色、投递三张治理页，不包含状态处置动作。',
-    menuPermissions: [PERMISSIONS.menu.recruit],
+    menuPermissions: [],
     pagePermissions: [PERMISSIONS.page.recruitProjects, PERMISSIONS.page.recruitRoles, PERMISSIONS.page.recruitApplies],
     actionPermissions: [],
     codes: [
-      PERMISSIONS.menu.recruit,
       PERMISSIONS.page.recruitProjects,
       PERMISSIONS.page.recruitRoles,
       PERMISSIONS.page.recruitApplies,
@@ -525,11 +597,10 @@ const recruitGovernancePermissionBundles: PermissionBundlePreset[] = [
     key: 'recruit-governance-operate',
     label: '招募治理处置',
     description: '适合执行项目结束、角色暂停/恢复等最小治理动作。',
-    menuPermissions: [PERMISSIONS.menu.recruit],
+    menuPermissions: [],
     pagePermissions: [PERMISSIONS.page.recruitProjects, PERMISSIONS.page.recruitRoles, PERMISSIONS.page.recruitApplies],
     actionPermissions: [PERMISSIONS.action.recruitProjectStatus, PERMISSIONS.action.recruitRoleStatus],
     codes: [
-      PERMISSIONS.menu.recruit,
       PERMISSIONS.page.recruitProjects,
       PERMISSIONS.page.recruitRoles,
       PERMISSIONS.page.recruitApplies,
@@ -589,7 +660,7 @@ const detailBlocks = computed(() => {
     { label: '角色 ID', value: detail.value.adminRoleId },
     { label: '角色编码', value: detail.value.roleCode },
     { label: '角色名称', value: detail.value.roleName },
-    { label: '状态', value: (adminRoleStatusMap[detail.value.status] || fallbackStatus(detail.value.status)).label },
+    { label: '状态', value: (adminRoleStatusMap[detail.value.status] || resolveRoleStatus(detail.value.status)).label },
     { label: '备注', value: detail.value.remark || '--' },
     { label: '创建人', value: detail.value.createUserName || '--' },
     { label: '创建时间', value: formatDateTime(detail.value.createTime) },
@@ -609,17 +680,17 @@ const matrixSummaryCards = computed(() => [
   {
     label: 'AI 已就绪',
     value: roleMatrix.value?.aiReadyRoleCount ?? 0,
-    description: '已补齐 AI 页面与两类动作权限',
+    description: '已具备 AI 页面与两类动作权限',
   },
   {
-    label: '仍靠 Fallback',
-    value: roleMatrix.value?.fallbackRoleCount ?? 0,
-    description: '移除旧日志兜底前必须先迁移的角色',
+    label: '权限缺口',
+    value: roleMatrix.value?.operationLogsPermissionGapRoleCount ?? 0,
+    description: '当前仍缺少 AI 权限的角色',
   },
   {
     label: '受影响账号',
-    value: roleMatrix.value?.fallbackBoundUserCount ?? 0,
-    description: '当前绑定在 fallback 角色上的后台账号数',
+    value: roleMatrix.value?.operationLogsPermissionGapBoundUserCount ?? 0,
+    description: '当前绑定在 AI 权限缺口角色上的后台账号数',
   },
 ])
 const recruitMatrixSummaryCards = computed(() => [
@@ -631,46 +702,56 @@ const recruitMatrixSummaryCards = computed(() => [
   {
     label: '招募已就绪',
     value: recruitRoleMatrix.value?.recruitReadyRoleCount ?? 0,
-    description: '已补齐招募菜单、三张页面和两类状态动作',
+    description: `页面 ready ${recruitRoleMatrix.value?.pageReadyRoleCount ?? 0} / 动作 ready ${recruitRoleMatrix.value?.actionReadyRoleCount ?? 0}`,
   },
   {
-    label: '仍靠 Fallback',
-    value: recruitRoleMatrix.value?.fallbackRoleCount ?? 0,
-    description: '仍依赖后台账号页兜底的启用角色',
+    label: '权限缺口',
+    value: recruitRoleMatrix.value?.recruitPermissionGapRoleCount ?? 0,
+    description: `页面缺口 ${recruitPagePermissionGapRoleCount.value} / 动作缺口 ${recruitActionPermissionGapRoleCount.value}`,
   },
   {
     label: '受影响账号',
-    value: recruitRoleMatrix.value?.fallbackBoundUserCount ?? 0,
-    description: '当前绑定在 fallback 角色上的后台账号数',
+    value: recruitRoleMatrix.value?.recruitPermissionGapBoundUserCount ?? 0,
+    description: '当前绑定在招募权限缺口角色上的后台账号数',
   },
 ])
 const roleMatrixStatusTag = computed(() =>
-  roleMatrix.value?.canRetireFallback
-    ? { label: '可评估下线 Fallback', tone: 'success' as const }
-    : { label: '仍需兼容过渡', tone: 'warning' as const },
+  roleMatrix.value?.operationLogsPermissionGapCleared
+    ? { label: '权限已收口', tone: 'success' as const }
+    : { label: '存在权限缺口', tone: 'warning' as const },
 )
 const recruitMatrixStatusTag = computed(() =>
-  recruitRoleMatrix.value?.canRetireFallback
-    ? { label: '可评估下线 Fallback', tone: 'success' as const }
-    : { label: '仍需兼容过渡', tone: 'warning' as const },
+  recruitRoleMatrix.value?.recruitPermissionGapCleared
+    ? { label: '权限已收口', tone: 'success' as const }
+    : recruitRoleMatrix.value?.pagePermissionGapCleared
+      ? { label: '动作授权缺口', tone: 'info' as const }
+      : recruitRoleMatrix.value?.actionPermissionGapCleared
+        ? { label: '页面授权缺口', tone: 'info' as const }
+        : { label: '存在权限缺口', tone: 'warning' as const },
 )
 const roleMatrixAlertText = computed(() => {
   if (!roleMatrix.value) {
     return '正在加载 AI 授权矩阵。'
   }
-  if (roleMatrix.value.canRetireFallback) {
-    return '当前启用角色已不依赖 `page.system.operation-logs` 兜底，可在真环境授权验证完成后评估下线兼容逻辑。'
+  if (roleMatrix.value.operationLogsPermissionGapCleared) {
+    return '当前启用角色已完成 AI 页面与动作权限收口，可沿独立权限模型维护。'
   }
-  return `仍有 ${roleMatrix.value.fallbackRoleCount} 个启用角色、${roleMatrix.value.fallbackBoundUserCount} 个后台账号依赖旧日志兜底，不能直接移除 fallback。`
+  return `仍有 ${roleMatrix.value.operationLogsPermissionGapRoleCount} 个启用角色、${roleMatrix.value.operationLogsPermissionGapBoundUserCount} 个后台账号存在 AI 权限缺口，应配置页面与动作授权。`
 })
 const recruitMatrixAlertText = computed(() => {
   if (!recruitRoleMatrix.value) {
     return '正在加载招募治理授权矩阵。'
   }
-  if (recruitRoleMatrix.value.canRetireFallback) {
-    return '当前启用角色已不依赖 `page.system.admin-users` 兜底，可在真环境授权验证完成后评估下线兼容逻辑。'
+  if (recruitRoleMatrix.value.recruitPermissionGapCleared) {
+    return '当前启用角色已完成招募页面与动作权限收口，可沿独立权限模型维护。'
   }
-  return `仍有 ${recruitRoleMatrix.value.fallbackRoleCount} 个启用角色、${recruitRoleMatrix.value.fallbackBoundUserCount} 个后台账号依赖后台账号页兜底，不能直接移除 fallback。`
+  if (recruitRoleMatrix.value.pagePermissionGapCleared) {
+    return `当前启用角色的招募页面权限已齐备，但仍有 ${recruitRoleMatrix.value.actionPermissionGapRoleCount ?? 0} 个启用角色缺少动作授权。`
+  }
+  if (recruitRoleMatrix.value.actionPermissionGapCleared) {
+    return `当前启用角色的招募动作权限已齐备，但仍有 ${recruitRoleMatrix.value.pagePermissionGapRoleCount ?? 0} 个启用角色缺少页面授权。`
+  }
+  return `仍有 ${recruitRoleMatrix.value.recruitPermissionGapRoleCount} 个启用角色、${recruitRoleMatrix.value.recruitPermissionGapBoundUserCount} 个后台账号存在招募权限缺口；其中页面缺口 ${recruitPagePermissionGapRoleCount.value} 个、动作缺口 ${recruitActionPermissionGapRoleCount.value} 个。`
 })
 
 const statusMeta = computed(() => [
@@ -679,11 +760,55 @@ const statusMeta = computed(() => [
   { label: '角色名称', value: currentRow.value?.roleName },
   { label: '目标状态', value: statusMode.value === 'enable' ? '启用' : '禁用' },
 ])
+
+function hasRecruitDirectPages(item: AdminRoleRecruitGovernanceMatrixItem) {
+  return Boolean(item.pageReady ?? (item.hasRecruitProjectsPage && item.hasRecruitRolesPage && item.hasRecruitAppliesPage))
+}
+
+function hasRecruitDirectActions(item: AdminRoleRecruitGovernanceMatrixItem) {
+  return Boolean(item.actionReady ?? (item.hasRecruitProjectStatusAction && item.hasRecruitRoleStatusAction))
+}
+
+function hasRecruitPagePermissionGap(item: AdminRoleRecruitGovernanceMatrixItem) {
+  return Boolean(item.pagePermissionGap ?? (item.hasAdminUsersPage && !hasRecruitDirectPages(item)))
+}
+
+function hasRecruitActionPermissionGap(item: AdminRoleRecruitGovernanceMatrixItem) {
+  return Boolean(item.actionPermissionGap ?? (item.hasAdminUsersPage && !hasRecruitDirectActions(item)))
+}
+
+const recruitPagePermissionGapRoleCount = computed(() =>
+  recruitRoleMatrix.value?.pagePermissionGapRoleCount
+    ?? recruitMatrixRows.value.filter((item) => item.status === 1 && hasRecruitPagePermissionGap(item)).length,
+)
+
+const recruitActionPermissionGapRoleCount = computed(() =>
+  recruitRoleMatrix.value?.actionPermissionGapRoleCount
+    ?? recruitMatrixRows.value.filter((item) => item.status === 1 && hasRecruitActionPermissionGap(item)).length,
+)
+
+const recruitMatrixPermissionTextMap: Record<string, string> = {
+  [PERMISSIONS.page.recruitProjects]: '剧组项目页',
+  [PERMISSIONS.page.recruitRoles]: '招募角色页',
+  [PERMISSIONS.page.recruitApplies]: '投递记录页',
+  [PERMISSIONS.action.recruitProjectStatus]: '项目处置',
+  [PERMISSIONS.action.recruitRoleStatus]: '角色处置',
+}
+
+function getRecruitMatrixPermissionDisplayText(permission: string) {
+  return recruitMatrixPermissionTextMap[permission] || getPermissionDisplayText(permission)
+}
+
+function getPermissionCompactDisplayText(permission: string) {
+  const fullText = getPermissionDisplayText(permission)
+  return fullText.split(' · ')[0]
+}
+
 const aiGovernancePresetNotice = computed(() => {
   const hasIndependentPage = form.pagePermissions.includes(PERMISSIONS.page.systemAiResumeGovernance)
   const hasReviewAction = form.actionPermissions.includes(PERMISSIONS.action.systemAiResumeReview)
   const hasResolveAction = form.actionPermissions.includes(PERMISSIONS.action.systemAiResumeResolve)
-  const hasLegacyFallbackOnly =
+  const hasPermissionGap =
     form.pagePermissions.includes(PERMISSIONS.page.systemOperationLogs) &&
     !hasIndependentPage &&
     !hasReviewAction &&
@@ -700,15 +825,15 @@ const aiGovernancePresetNotice = computed(() => {
   if (hasIndependentPage) {
     return {
       title: '当前角色已具备 AI 治理页面权限',
-      description: '若还需要人工处置失败样本，可继续补 action.system.ai-resume.review / resolve。',
+      description: '若还需要人工处置失败记录，可配置 action.system.ai-resume.review / resolve。',
       type: 'info' as const,
     }
   }
 
-  if (hasLegacyFallbackOnly) {
+  if (hasPermissionGap) {
     return {
-      title: '当前角色仍依赖 operation-logs 兼容兜底',
-      description: '旧角色可继续兼容访问，但新授权应优先发放独立 AI 页面 / 动作权限，便于后续下线 fallback。',
+      title: '当前角色缺少 AI 治理权限',
+      description: '当前 AI 治理使用独立页面与动作权限，应配置缺失权限。',
       type: 'warning' as const,
     }
   }
@@ -720,53 +845,51 @@ const aiGovernancePresetNotice = computed(() => {
   }
 })
 const recruitGovernancePresetNotice = computed(() => {
-  const hasRecruitMenu = form.menuPermissions.includes(PERMISSIONS.menu.recruit)
   const hasProjectsPage = form.pagePermissions.includes(PERMISSIONS.page.recruitProjects)
   const hasRolesPage = form.pagePermissions.includes(PERMISSIONS.page.recruitRoles)
   const hasAppliesPage = form.pagePermissions.includes(PERMISSIONS.page.recruitApplies)
   const hasProjectAction = form.actionPermissions.includes(PERMISSIONS.action.recruitProjectStatus)
   const hasRoleAction = form.actionPermissions.includes(PERMISSIONS.action.recruitRoleStatus)
-  const hasFallbackOnly =
+  const hasPermissionGap =
     form.pagePermissions.includes(PERMISSIONS.page.systemAdminUsers) &&
-    !hasRecruitMenu &&
     !hasProjectsPage &&
     !hasRolesPage &&
     !hasAppliesPage &&
     !hasProjectAction &&
     !hasRoleAction
 
-  if (hasRecruitMenu && hasProjectsPage && hasRolesPage && hasAppliesPage && hasProjectAction && hasRoleAction) {
+  if (hasProjectsPage && hasRolesPage && hasAppliesPage && hasProjectAction && hasRoleAction) {
     return {
       title: '当前角色已具备招募治理处置权限',
-      description: '该角色可直接进入招募治理菜单，并执行项目与角色状态校准动作。',
+      description: '该角色可直接进入招募治理页，并执行项目与角色状态校准动作。',
       type: 'success' as const,
     }
   }
 
-  if (hasRecruitMenu && hasProjectsPage && hasRolesPage && hasAppliesPage) {
+  if (hasProjectsPage && hasRolesPage && hasAppliesPage) {
     return {
       title: '当前角色已具备招募治理页面权限',
-      description: '若还需要处置项目或角色状态，可继续补 action.recruit.project.status / action.recruit.role.status。',
+      description: '若还需要处置项目或角色状态，可配置 action.recruit.project.status / action.recruit.role.status。',
       type: 'info' as const,
     }
   }
 
-  if (hasFallbackOnly) {
+  if (hasPermissionGap) {
     return {
-      title: '当前角色仍依赖后台账号页兼容兜底',
-      description: '旧角色可继续兼容访问，但新授权应优先发放独立招募菜单 / 页面 / 动作权限，便于后续下线 fallback。',
+      title: '当前角色缺少招募治理权限',
+      description: '当前招募治理使用独立页面与动作权限，应配置缺失权限。',
       type: 'warning' as const,
     }
   }
 
   return {
     title: '建议优先套用独立招募治理权限包',
-    description: '角色页权限树已支持真实分配 menu.recruit、page.recruit.* 与 action.recruit.*，不建议再把后台账号页当成新授权入口。',
+    description: '角色页权限树已支持真实分配 page.recruit.* 与 action.recruit.*，后台账号页不作为新授权入口。',
     type: 'info' as const,
   }
 })
 
-function fallbackStatus(status?: number) {
+function resolveRoleStatus(status?: number) {
   return { label: `状态 ${status ?? '--'}`, tone: 'info' as const }
 }
 
@@ -774,32 +897,26 @@ function getAiGovernanceStageMeta(stage?: string) {
   if (stage === 'ai_ready') {
     return { label: '新权限已齐备', tone: 'success' as const }
   }
-  if (stage === 'compat_transition') {
-    return { label: '兼容迁移中', tone: 'warning' as const }
+  if (stage === 'permission_review') {
+    return { label: '权限缺口', tone: 'danger' as const }
   }
-  if (stage === 'fallback_only') {
-    return { label: '仅旧权限兜底', tone: 'danger' as const }
-  }
-  if (stage === 'partial_ai') {
+  if (stage === 'ai_partial') {
     return { label: '新权限不完整', tone: 'warning' as const }
   }
-  return { label: '未接入 AI', tone: 'info' as const }
+  return { label: 'AI 权限缺口', tone: 'info' as const }
 }
 
 function getRecruitGovernanceStageMeta(stage?: string) {
   if (stage === 'recruit_ready') {
     return { label: '新权限已齐备', tone: 'success' as const }
   }
-  if (stage === 'compat_transition') {
-    return { label: '兼容迁移中', tone: 'warning' as const }
+  if (stage === 'permission_review') {
+    return { label: '权限缺口', tone: 'danger' as const }
   }
-  if (stage === 'fallback_only') {
-    return { label: '仅旧权限兜底', tone: 'danger' as const }
-  }
-  if (stage === 'partial_recruit') {
+  if (stage === 'recruit_partial') {
     return { label: '新权限不完整', tone: 'warning' as const }
   }
-  return { label: '未接入招募', tone: 'info' as const }
+  return { label: '招募权限缺口', tone: 'info' as const }
 }
 
 function mergeUniquePermissions(current: string[], next: string[]) {
@@ -906,7 +1023,7 @@ function openStatusDialog(mode: StatusMode, row: AdminRoleItem) {
 
 async function submitForm() {
   if (!form.roleCode || !form.roleName) {
-    ElMessage.warning('请补齐角色编码和角色名称')
+    ElMessage.warning('请填写角色编码和角色名称')
     return
   }
   formSubmitting.value = true
@@ -930,7 +1047,7 @@ async function submitCopy() {
     return
   }
   if (!copyForm.roleCode || !copyForm.roleName) {
-    ElMessage.warning('请补齐新角色编码和名称')
+    ElMessage.warning('请填写新角色编码和名称')
     return
   }
   copySubmitting.value = true
@@ -978,78 +1095,721 @@ onMounted(loadRecruitRoleMatrix)
 </script>
 
 <style scoped lang="scss">
-.table-card,
-.detail-card {
-  border: 1px solid var(--kp-border);
-  background: var(--kp-surface);
+
+.roles-shell-card :deep(.el-card__body) {
+  padding: 14px 18px 12px;
+}
+
+.roles-shell-card__stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.roles-shell-pill {
+  display: grid;
+  gap: 4px;
+  min-width: 148px;
+  padding: 12px 14px;
+  border: 1px solid rgba(80, 63, 47, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.roles-shell-pill span {
+  color: rgba(47, 36, 27, 0.48);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.roles-shell-pill strong {
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.roles-shell-pill--dark {
+  background: #221f1c;
+  border-color: rgba(34, 31, 28, 0.92);
+  color: #f6efe6;
+}
+
+.roles-shell-pill--dark span {
+  color: rgba(246, 239, 230, 0.58);
+}
+
+.roles-shell-card__note {
+  margin: 10px 0 0;
+  color: rgba(47, 36, 27, 0.56);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.roles-filter-panel :deep(.el-card__body) {
+  padding: 16px 18px 14px;
+}
+
+.roles-filter-panel :deep(.filter-panel__header) {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+}
+
+.roles-filter-panel :deep(.filter-panel__header h3) {
+  font-size: 15px;
+}
+
+.roles-filter-panel :deep(.filter-panel__header p) {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.roles-filter-panel :deep(.filter-panel__body) {
+  gap: 12px;
+}
+
+.roles-filter-panel :deep(.el-form--inline) {
+  gap: 10px 14px;
+}
+
+.roles-filter-panel :deep(.el-form--inline .el-form-item) {
+  gap: 8px;
+}
+
+.roles-filter-panel :deep(.el-form-item__label) {
+  min-height: 40px;
+  font-size: 11px;
+}
+
+.roles-filter-panel :deep(.el-form-item__content) {
+  min-width: 152px;
+}
+
+.roles-filter-panel :deep(.el-input__wrapper),
+.roles-filter-panel :deep(.el-select__wrapper) {
+  min-height: 46px;
+  border-radius: 16px;
+}
+
+.roles-ai-matrix-card :deep(.el-card__header),
+.roles-recruit-matrix-card :deep(.el-card__header) {
+  padding: 16px 20px 12px;
+}
+
+.roles-ai-matrix-card :deep(.el-card__body),
+.roles-recruit-matrix-card :deep(.el-card__body) {
+  padding: 18px 20px 18px;
 }
 
 .card-head {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
+  gap: 10px;
 
   h3 {
     margin: 0;
-    font-size: 18px;
+    font-size: 16px;
   }
 
   p {
-    margin: 6px 0 0;
-    color: var(--kp-text-secondary);
-    font-size: 13px;
-    line-height: 1.6;
-  }
-}
-
-.matrix-summary {
-  display: grid;
-  gap: 12px;
-  margin-bottom: 16px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.summary-block {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border: 1px solid rgba(47, 36, 27, 0.08);
-  border-radius: 16px;
-  background: rgba(47, 36, 27, 0.04);
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 24px;
-    line-height: 1.1;
-  }
-
-  small {
+    margin: 4px 0 0;
     color: var(--kp-text-secondary);
     font-size: 12px;
     line-height: 1.5;
   }
 }
 
-.matrix-table {
-  margin-top: 16px;
+.matrix-summary {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.stack-cell {
+.summary-block {
   display: grid;
-
-  strong {
-    font-size: 13px;
-  }
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid rgba(47, 36, 27, 0.08);
+  border-radius: 14px;
+  background: rgba(47, 36, 27, 0.04);
 
   span {
     color: var(--kp-text-secondary);
-    font-size: 12px;
+    font-size: 11px;
   }
+
+  strong {
+    font-size: 20px;
+    line-height: 1.1;
+  }
+
+  small {
+    color: var(--kp-text-secondary);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+}
+
+.roles-ai-matrix-card :deep(.el-alert),
+.roles-recruit-matrix-card :deep(.el-alert) {
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
+.roles-ai-matrix-card :deep(.el-alert__title),
+.roles-recruit-matrix-card :deep(.el-alert__title) {
+  font-size: 13px;
+}
+
+.roles-ai-matrix-card :deep(.el-alert__description),
+.roles-recruit-matrix-card :deep(.el-alert__description) {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.roles-ai-matrix-card :deep(.roles-ai-matrix-table th.el-table__cell) {
+  padding: 10px 0;
+  font-size: 11px;
+}
+
+.roles-ai-matrix-card :deep(.roles-ai-matrix-table td.el-table__cell) {
+  padding: 9px 0;
+}
+
+.roles-ai-matrix-card :deep(.roles-ai-matrix-table .cell) {
+  line-height: 1.4;
+}
+
+.roles-ai-matrix-card :deep(.roles-ai-matrix-table .stack-cell) {
+  gap: 3px;
+}
+
+.roles-ai-matrix-card :deep(.roles-ai-matrix-table .stack-cell strong) {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.roles-ai-matrix-card :deep(.roles-ai-matrix-table .stack-cell span) {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.roles-ai-matrix-card :deep(.roles-ai-matrix-table .tag-list) {
+  gap: 6px;
+}
+
+.roles-ai-matrix-card :deep(.roles-ai-matrix-table .tag-list .el-tag) {
+  min-height: 24px;
+  padding-inline: 9px;
+  font-size: 11px;
+}
+
+.roles-ai-matrix-card :deep(.roles-ai-matrix-table .table-actions) {
+  gap: 4px 8px;
+}
+
+.roles-ai-matrix-card :deep(.roles-ai-matrix-table .table-actions :is(.el-button.is-link, .el-button--link)) {
+  min-height: 22px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.roles-recruit-matrix-card :deep(.roles-recruit-matrix-table th.el-table__cell) {
+  padding: 10px 0;
+  font-size: 11px;
+}
+
+.roles-recruit-matrix-card :deep(.roles-recruit-matrix-table td.el-table__cell) {
+  padding: 9px 0;
+}
+
+.roles-recruit-matrix-card :deep(.roles-recruit-matrix-table .cell) {
+  line-height: 1.4;
+}
+
+.roles-recruit-matrix-card :deep(.roles-recruit-matrix-table .stack-cell) {
+  gap: 3px;
+}
+
+.roles-recruit-matrix-card :deep(.roles-recruit-matrix-table .stack-cell strong) {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.roles-recruit-matrix-card :deep(.roles-recruit-matrix-table .stack-cell span) {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.roles-recruit-matrix-card :deep(.roles-recruit-matrix-table .tag-list) {
+  gap: 6px;
+}
+
+.roles-recruit-matrix-card :deep(.roles-recruit-matrix-table .tag-list .el-tag) {
+  min-height: 24px;
+  padding-inline: 9px;
+  font-size: 11px;
+}
+
+.roles-recruit-matrix-card :deep(.roles-recruit-matrix-table .table-actions) {
+  gap: 4px 8px;
+}
+
+.roles-recruit-matrix-card :deep(.roles-recruit-matrix-table .table-actions :is(.el-button.is-link, .el-button--link)) {
+  min-height: 22px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.roles-directory-card :deep(.el-card__body) {
+  padding: 16px 20px 16px;
+}
+
+.roles-directory-card .table-header {
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.roles-directory-card .table-header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.roles-directory-card .table-header__eyebrow {
+  margin: 0;
+  color: rgba(47, 36, 27, 0.5);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.roles-directory-card .table-header h3 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.roles-directory-card .table-header__hint {
+  max-width: 336px;
+  color: var(--kp-text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.roles-directory-card :deep(.roles-directory-table th.el-table__cell) {
+  padding: 10px 0;
+  font-size: 11px;
+}
+
+.roles-directory-card :deep(.roles-directory-table td.el-table__cell) {
+  padding: 8px 0;
+}
+
+.roles-directory-card :deep(.roles-directory-table .cell) {
+  line-height: 1.4;
+}
+
+.roles-directory-card :deep(.roles-directory-table .stack-cell) {
+  gap: 3px;
+}
+
+.roles-directory-card :deep(.roles-directory-table .stack-cell strong) {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.roles-directory-card :deep(.roles-directory-table .stack-cell span) {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.roles-directory-card :deep(.roles-directory-table .table-actions) {
+  gap: 4px 8px;
+}
+
+.roles-directory-card :deep(.roles-directory-table .table-actions :is(.el-button.is-link, .el-button--link)) {
+  min-height: 22px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.roles-directory-pager {
+  margin-top: 12px;
+}
+
+.roles-directory-card :deep(.roles-directory-pager .el-pagination) {
+  min-height: 32px;
+}
+
+:deep(.roles-detail-drawer .el-drawer__header) {
+  margin-bottom: 0;
+  padding: 18px 22px 12px;
+}
+
+:deep(.roles-detail-drawer .el-drawer__title) {
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+:deep(.roles-detail-drawer .el-drawer__body) {
+  padding: 18px 22px;
+}
+
+:deep(.roles-detail-drawer .el-drawer__close-btn) {
+  width: 30px;
+  height: 30px;
+}
+
+:deep(.roles-detail-drawer .detail-layout) {
+  gap: 14px;
+}
+
+:deep(.roles-detail-drawer .drawer-hero) {
+  padding: 16px 18px;
+  gap: 10px;
+}
+
+:deep(.roles-detail-drawer .drawer-hero p) {
+  margin: 0 0 4px;
+  font-size: 11px;
+}
+
+:deep(.roles-detail-drawer .drawer-hero strong) {
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+:deep(.roles-detail-drawer .drawer-hero span) {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+:deep(.roles-detail-drawer .detail-grid) {
+  gap: 12px;
+}
+
+:deep(.roles-detail-drawer .detail-block) {
+  min-height: 70px;
+  padding: 14px 16px;
+}
+
+:deep(.roles-detail-drawer .detail-block span) {
+  font-size: 11px;
+}
+
+:deep(.roles-detail-drawer .detail-block strong) {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+:deep(.roles-detail-drawer .permission-grid) {
+  gap: 14px;
+}
+
+:deep(.roles-detail-drawer .detail-card > .el-card__header) {
+  padding: 14px 18px 12px;
+}
+
+:deep(.roles-detail-drawer .detail-card > .el-card__body) {
+  padding: 16px 18px;
+}
+
+:deep(.roles-detail-drawer .detail-card h3) {
+  margin: 0;
+  font-size: 15px;
+}
+
+:deep(.roles-detail-drawer .detail-card .tag-list) {
+  gap: 6px;
+}
+
+:deep(.roles-detail-drawer .detail-card .el-tag) {
+  min-height: 24px;
+  padding-inline: 9px;
+  font-size: 11px;
+}
+
+:deep(.roles-action-dialog) {
+  overflow: hidden;
+}
+
+:deep(.roles-action-dialog .el-dialog__header) {
+  margin-bottom: 0;
+  padding: 18px 22px 12px;
+}
+
+:deep(.roles-action-dialog .el-dialog__title) {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+:deep(.roles-action-dialog .el-dialog__body) {
+  padding: 18px 22px 18px;
+}
+
+:deep(.roles-action-dialog .el-dialog__footer) {
+  padding: 14px 22px 18px;
+}
+
+:deep(.roles-action-dialog .el-dialog__headerbtn) {
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+}
+
+:deep(.roles-action-dialog .dialog-intro) {
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 12px 16px;
+  border-radius: 16px;
+}
+
+:deep(.roles-action-dialog .dialog-intro__eyebrow) {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+}
+
+:deep(.roles-action-dialog .dialog-intro strong) {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+:deep(.roles-action-dialog .dialog-intro p) {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+:deep(.roles-action-dialog .el-form-item) {
+  margin-bottom: 14px;
+}
+
+:deep(.roles-action-dialog .el-form-item__label) {
+  margin-bottom: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+:deep(.roles-action-dialog :is(.el-input__wrapper, .el-select__wrapper, .el-date-editor.el-input__wrapper)) {
+  min-height: 44px;
+  border-radius: 14px;
+}
+
+:deep(.roles-action-dialog .el-textarea__inner) {
+  min-height: 92px !important;
+  padding: 10px 12px;
+  border-radius: 14px;
+  line-height: 1.55;
+}
+
+:deep(.roles-action-dialog--form) {
+  max-height: calc(100vh - 36px);
+  margin: 18px auto !important;
+  display: flex;
+  flex-direction: column;
+}
+
+:deep(.roles-action-dialog--form .el-dialog__body) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+:deep(.roles-action-dialog--form .permission-stack) {
+  gap: 8px;
+}
+
+:deep(.roles-action-dialog--form .permission-stack .el-alert) {
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+
+:deep(.roles-action-dialog--form .permission-stack .el-alert__title) {
+  font-size: 12px;
+}
+
+:deep(.roles-action-dialog--form .permission-stack .el-alert__description) {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+:deep(.roles-action-dialog--form .ai-governance-bundle-grid) {
+  gap: 8px;
+}
+
+:deep(.roles-action-dialog--form .ai-governance-bundle-card) {
+  gap: 8px;
+}
+
+:deep(.roles-action-dialog--form .ai-governance-bundle-card > .el-card__body) {
+  padding: 14px 16px;
+}
+
+:deep(.roles-action-dialog--form .ai-governance-bundle-card .stack-cell) {
+  gap: 3px;
+}
+
+:deep(.roles-action-dialog--form .ai-governance-bundle-card .stack-cell strong) {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+:deep(.roles-action-dialog--form .ai-governance-bundle-card .stack-cell span) {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+:deep(.roles-action-dialog--form .ai-governance-bundle-card .tag-list) {
+  gap: 4px;
+}
+
+:deep(.roles-action-dialog--form .ai-governance-bundle-card .el-tag) {
+  min-height: 22px;
+  padding-inline: 8px;
+  font-size: 11px;
+}
+
+:deep(.roles-action-dialog--form .bundle-actions .el-button) {
+  min-height: 22px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+:deep(.roles-action-dialog--form .permission-editor) {
+  gap: 10px;
+}
+
+:deep(.roles-action-dialog--form .permission-editor .toolbar) {
+  gap: 6px;
+}
+
+:deep(.roles-action-dialog--form .permission-editor .toolbar-actions) {
+  gap: 6px;
+}
+
+:deep(.roles-action-dialog--form .permission-editor .toolbar .el-input__wrapper) {
+  min-height: 36px !important;
+  height: 36px;
+}
+
+:deep(.roles-action-dialog--form .permission-editor .toolbar-actions .el-tag) {
+  min-height: 24px;
+  padding-inline: 9px;
+  font-size: 11px;
+}
+
+:deep(.roles-action-dialog--form .permission-editor .unknown-list) {
+  gap: 6px;
+}
+
+:deep(.roles-action-dialog--form .permission-editor .unknown-list .el-tag) {
+  min-height: 24px;
+  padding-inline: 9px;
+  font-size: 11px;
+}
+
+:deep(.roles-action-dialog--form .permission-editor .permission-tree) {
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
+:deep(.roles-action-dialog--form .permission-editor .el-tree-node__content) {
+  min-height: 28px !important;
+  height: 28px;
+}
+
+:deep(.roles-action-dialog--form .permission-editor .tree-node) {
+  gap: 6px;
+}
+
+:deep(.roles-action-dialog--form .permission-editor .tree-node code) {
+  font-size: 11px;
+}
+
+:deep(.roles-status-dialog .el-dialog__header) {
+  margin-bottom: 0;
+  padding: 18px 22px 12px;
+}
+
+:deep(.roles-status-dialog .el-dialog__title) {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+:deep(.roles-status-dialog .el-dialog__body) {
+  padding: 18px 22px 18px;
+}
+
+:deep(.roles-status-dialog .el-dialog__footer) {
+  padding: 14px 22px 18px;
+}
+
+:deep(.roles-status-dialog .el-dialog__headerbtn) {
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+}
+
+:deep(.roles-status-dialog .dialog-content) {
+  gap: 10px;
+}
+
+:deep(.roles-status-dialog .dialog-intro) {
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: 16px;
+}
+
+:deep(.roles-status-dialog .dialog-intro__eyebrow) {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+}
+
+:deep(.roles-status-dialog .dialog-intro strong) {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+:deep(.roles-status-dialog .dialog-intro p) {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+:deep(.roles-status-dialog .dialog-meta) {
+  gap: 6px;
+}
+
+:deep(.roles-status-dialog .dialog-meta li) {
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
+:deep(.roles-status-dialog .dialog-meta span) {
+  font-size: 12px;
+}
+
+:deep(.roles-status-dialog .dialog-meta strong) {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+:deep(.roles-status-dialog .el-textarea__inner) {
+  min-height: 92px !important;
+  padding: 10px 12px;
+  border-radius: 14px;
+  line-height: 1.55;
+}
+
+:deep(.roles-status-dialog .dialog-tip) {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.matrix-table {
+  margin-top: 12px;
 }
 
 .permission-stack {
@@ -1074,42 +1834,6 @@ onMounted(loadRecruitRoleMatrix)
   justify-content: flex-end;
 }
 
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
-}
-
-.detail-layout {
-  display: grid;
-  gap: 16px;
-}
-
-.detail-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-block {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(47, 36, 27, 0.05);
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 14px;
-    line-height: 1.6;
-    word-break: break-all;
-  }
-}
-
 .permission-grid {
   display: grid;
   gap: 16px;
@@ -1128,14 +1852,25 @@ onMounted(loadRecruitRoleMatrix)
 @media (max-width: 820px) {
   .card-head {
     flex-direction: column;
+    align-items: flex-start;
   }
 
   .matrix-summary {
     grid-template-columns: 1fr;
   }
 
-  .detail-grid {
-    grid-template-columns: 1fr;
+  .roles-directory-card .table-header {
+    flex-direction: column;
+  }
+
+  .roles-directory-card .table-header__hint {
+    max-width: none;
+  }
+}
+
+@media (max-width: 1200px) {
+  .roles-shell-pill {
+    min-width: 132px;
   }
 }
 </style>

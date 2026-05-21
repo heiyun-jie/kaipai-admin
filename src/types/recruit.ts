@@ -13,8 +13,8 @@ export interface AdminRecruitProjectQuery {
 export interface AdminRecruitProjectItem {
   projectId: number
   crewUserId: number
-  companyProfileId?: number | null
-  companyName?: string | null
+  crewProfileId?: number | null
+  crewName?: string | null
   contactName?: string | null
   contactPhone?: string | null
   title?: string | null
@@ -47,10 +47,10 @@ export interface AdminRecruitRoleQuery {
 export interface AdminRecruitRoleItem {
   roleId: number
   crewUserId: number
-  companyProfileId?: number | null
+  crewProfileId?: number | null
   projectId?: number | null
   projectTitle?: string | null
-  companyName?: string | null
+  crewName?: string | null
   roleName?: string | null
   gender?: string | null
   minAge?: number | null
@@ -91,7 +91,7 @@ export interface AdminRecruitApplyItem {
   crewUserId: number
   projectId?: number | null
   projectTitle?: string | null
-  companyName?: string | null
+  crewName?: string | null
   roleName?: string | null
   roleStatus?: 'recruiting' | 'paused' | 'closed' | string | null
   actorName?: string | null

@@ -1,5 +1,32 @@
 <template>
   <PageContainer>
+    <section class="console-overview">
+      <article class="console-overview-card console-overview-card--dark">
+        <div class="console-overview-card__head">
+          <p>REFUND / ORDER</p>
+          <span>AUDIT</span>
+        </div>
+        <strong>{{ total }} 笔退款</strong>
+        <small>当前页承接退款审核、支付关联和日志回看。</small>
+      </article>
+      <article class="console-overview-card">
+        <div class="console-overview-card__head">
+          <p>REFUND NO</p>
+          <span>FOCUS</span>
+        </div>
+        <strong>{{ filters.refundNo || '全部退款单' }}</strong>
+        <small>支持按退款单号、支付单号和用户快速定位退款审核主链。</small>
+      </article>
+      <article class="console-overview-card">
+        <div class="console-overview-card__head">
+          <p>AUDIT STATE</p>
+          <span>STATUS</span>
+        </div>
+        <strong>{{ filters.auditStatus === 1 ? '已通过' : filters.auditStatus === 2 ? '已拒绝' : filters.auditStatus === 0 ? '待审核' : '全部状态' }}</strong>
+        <small>审核与退款状态按当前后端口径展示。</small>
+      </article>
+    </section>
+
     <FilterPanel description="按退款单、支付单、审核状态和时间范围筛选退款申请。">
       <el-form :model="filters" inline>
         <el-form-item label="退款单号">
@@ -72,6 +99,13 @@
     </el-alert>
 
     <el-card class="table-card" shadow="never">
+      <div class="table-header">
+        <div>
+          <p class="table-header__eyebrow">REFUND FEED / 退款审核</p>
+          <h3>退款单清单</h3>
+        </div>
+        <span class="table-header__hint">围绕退款审核、支付关联和操作日志做回看。</span>
+      </div>
       <el-table :data="rows" v-loading="loading">
         <el-table-column prop="refundOrderId" label="退款单 ID" min-width="110" />
         <el-table-column prop="refundNo" label="退款单号" min-width="170" />
@@ -99,7 +133,7 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="220">
           <template #default="{ row }">
-            <div class="table-actions">
+            <TableActions>
               <el-button link type="primary" @click="openDetail(row.refundOrderId)">查看详情</el-button>
               <PermissionButton
                 v-if="row.auditStatus === 0"
@@ -119,12 +153,12 @@
               >
                 审核拒绝
               </PermissionButton>
-            </div>
+            </TableActions>
           </template>
         </el-table-column>
       </el-table>
       <div class="pager">
-        <el-pagination
+        <AdminPager
           v-model:current-page="filters.pageNo"
           v-model:page-size="filters.pageSize"
           layout="total, sizes, prev, pager, next"
@@ -136,8 +170,17 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" title="退款单详情" size="860px">
+    <AdminDetailDrawer v-model="detailVisible" title="退款单详情" size="860px" destroy-on-close>
       <div v-if="detail" class="detail-layout">
+        <section class="drawer-hero">
+          <div>
+            <p>REFUND DETAIL / 退款详情</p>
+            <strong>{{ detail.refundNo || '退款单详情' }}</strong>
+            <span>用户 {{ detail.userId ?? '--' }} · {{ formatCurrency(detail.refundAmount) }}</span>
+          </div>
+          <StatusTag v-bind="refundAuditStatusMap[detail.auditStatus ?? 0] || refundAuditStatusMap[0]" />
+        </section>
+
         <div class="detail-actions">
           <PermissionButton
             v-if="detail.auditStatus === 0"
@@ -160,22 +203,22 @@
         <div class="detail-split">
           <el-card class="detail-card" shadow="never">
             <template #header><h3>退款信息</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in refundBlocks" :key="item.label" class="detail-block">
+            <DetailGrid>
+              <DetailBlock v-for="item in refundBlocks" :key="item.label">
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+              </DetailBlock>
+            </DetailGrid>
           </el-card>
 
           <el-card class="detail-card" shadow="never">
             <template #header><h3>支付信息</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in paymentBlocks" :key="item.label" class="detail-block">
+            <DetailGrid>
+              <DetailBlock v-for="item in paymentBlocks" :key="item.label">
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+              </DetailBlock>
+            </DetailGrid>
           </el-card>
         </div>
 
@@ -194,7 +237,7 @@
           </el-table>
         </el-card>
       </div>
-    </el-drawer>
+    </AdminDetailDrawer>
 
     <AuditConfirmDialog
       v-model="auditVisible"
@@ -222,12 +265,14 @@ import AuditConfirmDialog from '@/components/dialogs/AuditConfirmDialog.vue'
 import { refundAuditStatusMap, refundStatusMap } from '@/constants/status'
 import type { RefundOrderDetail, RefundOrderItem, RefundOrderQuery } from '@/types/refund'
 import {
-  getDashboardContextFallbackSummary,
+  getDashboardContextSummary,
   getDashboardContextTitle,
   readRouteQueryString,
   resolveDashboardRouteSource,
 } from '@/utils/dashboard-context'
 import { formatCurrency, formatDateTime } from '@/utils/format'
+import AdminPager from '@/components/business/AdminPager.vue'
+import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
 
 type AuditMode = 'approve' | 'reject'
 
@@ -272,7 +317,7 @@ const dashboardContextSummary = computed(() => {
   if (filters.createdAtFrom && filters.createdAtTo) {
     parts.push(`创建时间 ${formatDateTime(filters.createdAtFrom)} 至 ${formatDateTime(filters.createdAtTo)}`)
   }
-  return parts.join('；') || getDashboardContextFallbackSummary(dashboardContextSource.value)
+  return parts.join('；') || getDashboardContextSummary(dashboardContextSource.value)
 })
 
 const refundBlocks = computed(() => {
@@ -429,11 +474,6 @@ watch(
 </script>
 
 <style scoped lang="scss">
-.table-card,
-.detail-card {
-  border: 1px solid var(--kp-border);
-  background: var(--kp-surface);
-}
 
 .context-alert {
   margin-bottom: 18px;
@@ -446,59 +486,11 @@ watch(
   align-items: center;
 }
 
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
-}
-
-.detail-layout {
-  display: grid;
-  gap: 16px;
-}
-
-.detail-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.detail-split {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-block {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(47, 36, 27, 0.05);
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 14px;
-    line-height: 1.6;
-    word-break: break-all;
-  }
-}
-
 @media (max-width: 960px) {
   .context-alert__content,
   .detail-split,
   .detail-grid {
-    grid-template-columns: 1fr;
+    display: grid;
   }
 }
 </style>

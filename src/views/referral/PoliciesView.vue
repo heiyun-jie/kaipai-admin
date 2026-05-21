@@ -44,12 +44,12 @@
     </el-alert>
 
     <el-card class="table-card" shadow="never">
-      <div class="policy-table__header">
+      <div class="table-header">
         <div>
-          <p class="policy-table__eyebrow">RULE GOVERNANCE</p>
+          <p class="table-header__eyebrow">RULE GOVERNANCE</p>
           <h3>当前规则清单</h3>
         </div>
-        <span class="policy-table__hint">优先核对资格门槛、频控约束和自动发放是否保持同一治理口径。</span>
+        <span class="table-header__hint">优先核对资格门槛、频控约束和自动发放是否保持同一治理口径。</span>
       </div>
       <el-table :data="rows" v-loading="loading">
         <el-table-column prop="policyId" label="规则 ID" min-width="110" />
@@ -82,7 +82,7 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="260">
           <template #default="{ row }">
-            <div class="table-actions">
+            <TableActions>
               <el-button link type="primary" @click="openDetail(row.policyId)">查看详情</el-button>
               <PermissionButton link action="action.referral.policy.edit" @click="openEdit(row.policyId)">编辑</PermissionButton>
               <PermissionButton
@@ -103,18 +103,18 @@
               >
                 启用
               </PermissionButton>
-            </div>
+            </TableActions>
           </template>
         </el-table-column>
         <template #empty>
           <div class="policy-empty">
             <strong>当前条件下没有邀请规则</strong>
-            <p>可以清空规则名称或切换启用状态，继续查看其他治理配置。</p>
+            <p>可以清空规则名称或切换启用状态，查看其他治理配置。</p>
           </div>
         </template>
       </el-table>
       <div class="pager">
-        <el-pagination
+        <AdminPager
           v-model:current-page="filters.pageNo"
           v-model:page-size="filters.pageSize"
           layout="total, sizes, prev, pager, next"
@@ -126,8 +126,17 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" title="邀请规则详情" size="860px" destroy-on-close>
+    <AdminDetailDrawer v-model="detailVisible" title="邀请规则详情" size="860px" destroy-on-close>
       <div v-loading="detailLoading" class="detail-layout">
+        <section v-if="detail" class="drawer-hero">
+          <div>
+            <p>POLICY DETAIL / 邀请规则</p>
+            <strong>{{ detail.policyName || '邀请规则详情' }}</strong>
+            <span>{{ detail.policyId ?? '--' }} · {{ detail.updateUserName || '--' }}</span>
+          </div>
+          <StatusTag v-bind="referralPolicyEnabledMap[detail.enabled || 0] || referralPolicyEnabledMap[0]" />
+        </section>
+
         <div v-if="detail" class="detail-actions">
           <PermissionButton link action="action.referral.policy.edit" @click="openEdit(detail.policyId)">
             编辑当前规则
@@ -154,33 +163,33 @@
 
         <el-card class="detail-card" shadow="never">
           <template #header><h3>规则概览</h3></template>
-          <div class="detail-grid">
-            <div v-for="item in overviewBlocks" :key="item.label" class="detail-block">
+          <DetailGrid>
+            <DetailBlock v-for="item in overviewBlocks" :key="item.label">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
-            </div>
-          </div>
+            </DetailBlock>
+          </DetailGrid>
         </el-card>
 
         <div class="detail-split">
           <el-card class="detail-card" shadow="never">
             <template #header><h3>资格门槛</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in conditionBlocks" :key="item.label" class="detail-block">
+            <DetailGrid>
+              <DetailBlock v-for="item in conditionBlocks" :key="item.label">
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+              </DetailBlock>
+            </DetailGrid>
           </el-card>
 
           <el-card class="detail-card" shadow="never">
             <template #header><h3>频控与发放</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in grantBlocks" :key="item.label" class="detail-block">
+            <DetailGrid>
+              <DetailBlock v-for="item in grantBlocks" :key="item.label">
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+              </DetailBlock>
+            </DetailGrid>
           </el-card>
         </div>
 
@@ -189,14 +198,19 @@
           <pre class="json-panel">{{ detail?.grantRuleJson || '--' }}</pre>
         </el-card>
       </div>
-    </el-drawer>
+    </AdminDetailDrawer>
 
     <el-dialog v-model="editorVisible" :title="editorMode === 'create' ? '新建邀请规则' : '编辑邀请规则'" width="760px" destroy-on-close>
+      <section class="dialog-intro">
+        <p class="dialog-intro__eyebrow">POLICY EDITOR / 规则维护</p>
+        <strong>{{ editorMode === 'create' ? '创建邀请规则' : '编辑邀请规则' }}</strong>
+        <p>在当前邀请规则模型下维护门槛、频控和自动发放配置。</p>
+      </section>
       <el-form label-position="top">
         <el-row :gutter="16">
           <el-col :span="24">
             <el-form-item label="规则名称">
-              <el-input v-model="form.policyName" placeholder="例如：实名会员邀请策略" />
+              <el-input v-model="form.policyName" placeholder="例如：实名用户邀请策略" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -297,11 +311,13 @@ import type {
   ReferralPolicySavePayload,
 } from '@/types/referral'
 import {
-  getDashboardContextFallbackSummary,
+  getDashboardContextSummary,
   getDashboardContextTitle,
   resolveDashboardRouteSource,
 } from '@/utils/dashboard-context'
 import { formatDateTime } from '@/utils/format'
+import AdminPager from '@/components/business/AdminPager.vue'
+import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
 
 type EditorMode = 'create' | 'edit'
 type StatusMode = 'enable' | 'disable'
@@ -332,7 +348,7 @@ const filters = reactive<ReferralPolicyQuery>({
 })
 const dashboardContextSource = computed(() => resolveDashboardRouteSource(route.query.source))
 const dashboardContextTitle = computed(() => getDashboardContextTitle(dashboardContextSource.value))
-const dashboardContextSummary = computed(() => getDashboardContextFallbackSummary(dashboardContextSource.value))
+const dashboardContextSummary = computed(() => getDashboardContextSummary(dashboardContextSource.value))
 
 const form = reactive<ReferralPolicyEditorForm>({
   policyName: '',
@@ -618,11 +634,6 @@ watch(
 </script>
 
 <style scoped lang="scss">
-.table-card,
-.detail-card {
-  border: 1px solid var(--kp-border);
-  background: var(--kp-surface);
-}
 
 .context-alert {
   margin-bottom: 16px;
@@ -633,41 +644,6 @@ watch(
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-
-.policy-table__header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-  margin-bottom: 18px;
-}
-
-.policy-table__eyebrow {
-  margin: 0 0 8px;
-  color: var(--kp-accent-deep);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-}
-
-.policy-table__header h3 {
-  margin: 0;
-  font-size: 20px;
-}
-
-.policy-table__hint {
-  max-width: 320px;
-  color: var(--kp-text-secondary);
-  line-height: 1.7;
-  text-align: right;
-}
-
-.table-actions,
-.detail-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
 }
 
 .policy-empty {
@@ -688,48 +664,6 @@ watch(
   }
 }
 
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
-}
-
-.detail-layout {
-  display: grid;
-  gap: 16px;
-}
-
-.detail-split {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-block {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(47, 36, 27, 0.05);
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 14px;
-    line-height: 1.6;
-    word-break: break-all;
-  }
-}
-
 .json-panel {
   margin: 0;
   padding: 16px;
@@ -744,23 +678,9 @@ watch(
 }
 
 @media (max-width: 960px) {
-  .policy-table__header {
-    display: grid;
-  }
-
-  .policy-table__hint {
-    max-width: none;
-    text-align: left;
-  }
-
   .context-alert__content {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .detail-split,
-  .detail-grid {
-    grid-template-columns: 1fr;
   }
 }
 </style>

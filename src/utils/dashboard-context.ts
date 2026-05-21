@@ -37,12 +37,12 @@ export function getDashboardContextTitle(source?: DashboardRouteSource) {
   return ''
 }
 
-export function getDashboardContextFallbackSummary(source?: DashboardRouteSource) {
+export function getDashboardContextSummary(source?: DashboardRouteSource) {
   if (source === 'dashboard_recent_item') {
     return '已自动带入最近事项筛查条件'
   }
   if (source === 'dashboard_scope') {
-    return '当前从工作台进入，可继续按本页条件细化筛查'
+    return '当前从工作台进入，可按本页条件细化筛查'
   }
   return ''
 }

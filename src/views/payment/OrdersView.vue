@@ -1,5 +1,32 @@
 <template>
   <PageContainer>
+    <section class="console-overview">
+      <article class="console-overview-card console-overview-card--dark">
+        <div class="console-overview-card__head">
+          <p>PAYMENT / ORDER</p>
+          <span>QUEUE</span>
+        </div>
+        <strong>{{ total }} 笔订单</strong>
+        <small>展示当前支付订单聚合结果。</small>
+      </article>
+      <article class="console-overview-card">
+        <div class="console-overview-card__head">
+          <p>ORDER FILTER</p>
+          <span>FOCUS</span>
+        </div>
+        <strong>{{ filters.orderNo || '全部订单' }}</strong>
+        <small>支持按订单号、用户和时间窗口定位当前支付主链。</small>
+      </article>
+      <article class="console-overview-card">
+        <div class="console-overview-card__head">
+          <p>PAY STATUS</p>
+          <span>STATE</span>
+        </div>
+        <strong>{{ filters.payStatus === 1 ? '已支付' : filters.payStatus === 2 ? '已关闭' : filters.payStatus === 0 ? '待支付' : '全部状态' }}</strong>
+        <small>支付状态按当前订单模型展示。</small>
+      </article>
+    </section>
+
     <FilterPanel description="按订单号、用户、支付状态和时间范围筛选支付订单。">
       <el-form :model="filters" inline>
         <el-form-item label="订单号">
@@ -70,6 +97,13 @@
     </el-alert>
 
     <el-card class="table-card" shadow="never">
+      <div class="table-header">
+        <div>
+          <p class="table-header__eyebrow">ORDER FEED / 支付订单</p>
+          <h3>支付订单清单</h3>
+        </div>
+        <span class="table-header__hint">围绕当前支付订单、产品和退款摘要做回看，不在这里引入新的交易治理模块。</span>
+      </div>
       <el-table :data="rows" v-loading="loading">
         <el-table-column prop="paymentOrderId" label="订单 ID" min-width="110" />
         <el-table-column prop="orderNo" label="订单号" min-width="180" />
@@ -77,10 +111,10 @@
         <el-table-column prop="phone" label="手机号" min-width="140" />
         <el-table-column label="产品" min-width="220">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.productName || '--' }}</strong>
               <span>{{ row.productCode || '--' }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column prop="bizType" label="业务类型" min-width="160" />
@@ -89,7 +123,7 @@
         </el-table-column>
         <el-table-column label="支付状态" min-width="110">
           <template #default="{ row }">
-            <StatusTag v-bind="paymentOrderStatusMap[row.payStatus ?? -1] || fallbackOrderStatus(row.payStatus)" />
+            <StatusTag v-bind="resolveOrderStatusTag(row.payStatus)" />
           </template>
         </el-table-column>
         <el-table-column prop="payChannel" label="渠道" min-width="120" />
@@ -101,12 +135,14 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="120">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row.paymentOrderId)">查看详情</el-button>
+            <TableActions>
+              <el-button link type="primary" @click="openDetail(row.paymentOrderId)">查看详情</el-button>
+            </TableActions>
           </template>
         </el-table-column>
       </el-table>
       <div class="pager">
-        <el-pagination
+        <AdminPager
           v-model:current-page="filters.pageNo"
           v-model:page-size="filters.pageSize"
           layout="total, sizes, prev, pager, next"
@@ -118,47 +154,36 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" title="支付订单详情" size="920px">
+    <AdminDetailDrawer v-model="detailVisible" title="支付订单详情" size="920px" destroy-on-close>
       <div v-if="detail" class="detail-layout">
+        <section class="drawer-hero">
+          <div>
+            <p>ORDER DETAIL / 订单详情</p>
+            <strong>{{ detail.orderInfo?.orderNo || '支付订单详情' }}</strong>
+            <span>{{ detail.productInfo?.productName || detail.productInfo?.productCode || '--' }} · 用户 {{ detail.orderInfo?.userId ?? '--' }}</span>
+          </div>
+          <StatusTag v-bind="resolveOrderStatusTag(detail.orderInfo?.payStatus)" />
+        </section>
+
         <div class="detail-split">
           <el-card class="detail-card" shadow="never">
             <template #header><h3>订单信息</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in orderBlocks" :key="item.label" class="detail-block">
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+            <DetailGrid :items="orderBlocks" />
           </el-card>
           <el-card class="detail-card" shadow="never">
             <template #header><h3>产品信息</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in productBlocks" :key="item.label" class="detail-block">
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+            <DetailGrid :items="productBlocks" />
           </el-card>
         </div>
 
         <div class="detail-split">
           <el-card class="detail-card" shadow="never">
             <template #header><h3>支付摘要</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in paymentBlocks" :key="item.label" class="detail-block">
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+            <DetailGrid :items="paymentBlocks" />
           </el-card>
           <el-card class="detail-card" shadow="never">
             <template #header><h3>退款摘要</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in refundBlocks" :key="item.label" class="detail-block">
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+            <DetailGrid :items="refundBlocks" />
           </el-card>
         </div>
 
@@ -174,7 +199,7 @@
             </el-table-column>
             <el-table-column label="状态" min-width="100">
               <template #default="{ row }">
-                <StatusTag v-bind="paymentTransactionStatusMap[row.status ?? -1] || fallbackTransactionStatus(row.status)" />
+                <StatusTag v-bind="resolveTransactionStatusTag(row.status)" />
               </template>
             </el-table-column>
             <el-table-column label="回调时间" min-width="180">
@@ -183,7 +208,7 @@
           </el-table>
         </el-card>
       </div>
-    </el-drawer>
+    </AdminDetailDrawer>
   </PageContainer>
 </template>
 
@@ -197,12 +222,14 @@ import StatusTag from '@/components/business/StatusTag.vue'
 import { paymentOrderStatusMap, paymentTransactionStatusMap, refundAuditStatusMap, refundStatusMap } from '@/constants/status'
 import type { PaymentOrderDetail, PaymentOrderListItem, PaymentOrderQuery } from '@/types/payment'
 import {
-  getDashboardContextFallbackSummary,
+  getDashboardContextSummary,
   getDashboardContextTitle,
   readRouteQueryString,
   resolveDashboardRouteSource,
 } from '@/utils/dashboard-context'
 import { formatCurrency, formatDateTime } from '@/utils/format'
+import AdminPager from '@/components/business/AdminPager.vue'
+import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
 
 const loading = ref(false)
 const route = useRoute()
@@ -243,7 +270,7 @@ const dashboardContextSummary = computed(() => {
   if (filters.createdAtFrom && filters.createdAtTo) {
     parts.push(`创建时间 ${formatDateTime(filters.createdAtFrom)} 至 ${formatDateTime(filters.createdAtTo)}`)
   }
-  return parts.join('；') || getDashboardContextFallbackSummary(dashboardContextSource.value)
+  return parts.join('；') || getDashboardContextSummary(dashboardContextSource.value)
 })
 
 const orderBlocks = computed(() => {
@@ -258,7 +285,7 @@ const orderBlocks = computed(() => {
     { label: '业务引用 ID', value: order.bizRefId ?? '--' },
     { label: '金额', value: formatCurrency(order.amount) },
     { label: '币种', value: order.currencyCode || '--' },
-    { label: '支付状态', value: (paymentOrderStatusMap[order.payStatus ?? -1] || fallbackOrderStatus(order.payStatus)).label },
+    { label: '支付状态', value: resolveOrderStatusTag(order.payStatus).label },
     { label: '支付渠道', value: order.payChannel || '--' },
     { label: '创建时间', value: formatDateTime(order.createTime) },
     { label: '支付时间', value: formatDateTime(order.paidAt) },
@@ -272,7 +299,6 @@ const productBlocks = computed(() => {
     { label: '产品 ID', value: product.productId ?? '--' },
     { label: '产品编码', value: product.productCode || '--' },
     { label: '产品名称', value: product.productName || '--' },
-    { label: '会员层级', value: product.membershipTier ?? '--' },
     { label: '时长(天)', value: product.durationDays ?? '--' },
   ]
 })
@@ -296,11 +322,19 @@ const refundBlocks = computed(() => {
   ]
 })
 
-function fallbackOrderStatus(status?: number | null) {
+function resolveOrderStatusTag(status?: number | null) {
+  const matched = paymentOrderStatusMap[status ?? -1]
+  if (matched) {
+    return matched
+  }
   return { label: `状态 ${status ?? '--'}`, tone: 'info' as const }
 }
 
-function fallbackTransactionStatus(status?: number | null) {
+function resolveTransactionStatusTag(status?: number | null) {
+  const matched = paymentTransactionStatusMap[status ?? -1]
+  if (matched) {
+    return matched
+  }
   return { label: `状态 ${status ?? '--'}`, tone: 'info' as const }
 }
 
@@ -374,11 +408,6 @@ watch(
 </script>
 
 <style scoped lang="scss">
-.table-card,
-.detail-card {
-  border: 1px solid var(--kp-border);
-  background: var(--kp-surface);
-}
 
 .context-alert {
   margin-bottom: 18px;
@@ -391,66 +420,10 @@ watch(
   align-items: center;
 }
 
-.stack-cell {
-  display: grid;
-
-  strong {
-    font-size: 13px;
-  }
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-}
-
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
-}
-
-.detail-layout {
-  display: grid;
-  gap: 16px;
-}
-
-.detail-split {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-block {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(47, 36, 27, 0.05);
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 14px;
-    line-height: 1.6;
-    word-break: break-all;
-  }
-}
-
 @media (max-width: 960px) {
   .context-alert__content,
-  .detail-split,
-  .detail-grid {
-    grid-template-columns: 1fr;
+  .detail-split {
+    display: grid;
   }
 }
 </style>

@@ -19,9 +19,10 @@ export interface AdminMenuItem {
   key: string
   label: string
   icon: string
+  section?: 'overview' | 'growth' | 'operate'
   route?: string
   menuPermission?: string
   pagePermission?: string
-  pagePermissionFallbacks?: string[]
+  anyPagePermissions?: string[]
   children?: AdminMenuItem[]
 }

@@ -57,7 +57,6 @@ export interface PaymentOrderDetail {
     productId?: number | null
     productCode?: string | null
     productName?: string | null
-    membershipTier?: number | null
     durationDays?: number | null
   } | null
   paymentInfo?: {
@@ -76,17 +75,6 @@ export interface PaymentOrderDetail {
   } | null
 }
 
-export interface PaymentTransactionQuery {
-  pageNo: number
-  pageSize: number
-  paymentOrderNo?: string
-  channelTradeNo?: string
-  channel?: string
-  status?: number
-  callbackFrom?: string
-  callbackTo?: string
-}
-
 export interface PaymentTransactionListItem {
   transactionId: number
   paymentOrderId?: number | null
@@ -100,38 +88,4 @@ export interface PaymentTransactionListItem {
   createTime?: string | null
 }
 
-export interface PaymentTransactionDetail {
-  transactionInfo?: {
-    transactionId?: number | null
-    paymentOrderId?: number | null
-    paymentOrderNo?: string | null
-    userId?: number | null
-    bizType?: string | null
-    bizRefId?: number | null
-    productId?: number | null
-    productCode?: string | null
-    productName?: string | null
-    payChannel?: string | null
-    payStatus?: number | null
-    orderAmount?: number | string | null
-    currencyCode?: string | null
-    paidAt?: string | null
-    channelTradeNo?: string | null
-    channel?: string | null
-    tradeType?: string | null
-    amount?: number | string | null
-    status?: number | null
-    callbackTime?: string | null
-    createTime?: string | null
-    lastUpdate?: string | null
-  } | null
-  callbackPayloadSummary?: {
-    hasPayload?: boolean | null
-    payloadLength?: number | null
-    payloadPreview?: string | null
-    callbackTime?: string | null
-  } | null
-}
-
 export type PaymentOrderPageResult = PageResult<PaymentOrderListItem>
-export type PaymentTransactionPageResult = PageResult<PaymentTransactionListItem>

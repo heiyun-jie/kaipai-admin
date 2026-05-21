@@ -15,6 +15,8 @@ const props = withDefaults(
     impactHint?: string
     reasonRequired?: boolean
     reasonLabel?: string
+    dialogClass?: string
+    width?: string
     meta?: Array<{ label: string; value?: string | number | null }>
   }>(),
   {
@@ -23,6 +25,8 @@ const props = withDefaults(
     confirmText: '确认提交',
     placeholder: '请输入操作备注',
     reasonLabel: '操作备注',
+    dialogClass: '',
+    width: '520px',
     meta: () => [],
   },
 )
@@ -63,8 +67,13 @@ function submit() {
 </script>
 
 <template>
-  <el-dialog :model-value="modelValue" :title="title" width="460px" @close="close">
+  <el-dialog :model-value="modelValue" :title="title" :width="width" class="audit-confirm-dialog" @close="close">
     <div class="dialog-content">
+      <section class="dialog-intro">
+        <p class="dialog-intro__eyebrow">ACTION / 操作确认</p>
+        <strong>{{ title }}</strong>
+        <p>{{ finalSummary || impactHint || '请确认本次后台动作的影响范围，再提交。' }}</p>
+      </section>
       <p v-if="finalSummary" class="dialog-summary">{{ finalSummary }}</p>
       <ul v-if="meta.length" class="dialog-meta">
         <li v-for="item in meta" :key="item.label">
@@ -96,7 +105,7 @@ function submit() {
 .dialog-content {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .dialog-summary {
@@ -116,9 +125,10 @@ function submit() {
     display: flex;
     justify-content: space-between;
     gap: 12px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    background: rgba(29, 23, 18, 0.05);
+    padding: 12px 14px;
+    border: 1px solid rgba(34, 31, 28, 0.06);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.64);
   }
 
   span {

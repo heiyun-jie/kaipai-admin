@@ -24,7 +24,6 @@ export interface AdminAiResumeHistoryItem {
   phone?: string | null
   realAuthStatus?: number | null
   level?: number | null
-  membershipTier?: string | null
   draftId: string
   requestId: string
   conversationId: string
@@ -47,7 +46,6 @@ export interface AdminAiResumeFailureItem {
   phone?: string | null
   realAuthStatus?: number | null
   level?: number | null
-  membershipTier?: string | null
   requestId?: string | null
   conversationId?: string | null
   instruction?: string | null
@@ -74,9 +72,16 @@ export interface AdminAiResumeFailureItem {
   claimDeadlineAt?: string | null
   collaborationStatus?: string | null
   notificationStatus?: string | null
+  notificationDeliveryId?: number | null
+  notificationSourceType?: string | null
+  notificationChannelCode?: string | null
+  notificationRecipient?: string | null
+  notificationProviderCode?: string | null
+  notificationProviderMessageId?: string | null
   notificationSentAt?: string | null
   notificationFailureReason?: string | null
   notificationReceiptStatus?: string | null
+  notificationReceiptSourceType?: string | null
   notificationReceiptAt?: string | null
   notificationReceiptFailureReason?: string | null
   autoRemindStage?: string | null
@@ -107,9 +112,16 @@ export interface AdminAiResumeFailureHandlingNote {
   assignmentAcknowledgedByAdminName?: string | null
   assignmentAcknowledgedAt?: string | null
   notificationStatus?: string | null
+  notificationDeliveryId?: number | null
+  notificationSourceType?: string | null
+  notificationChannelCode?: string | null
+  notificationRecipient?: string | null
+  notificationProviderCode?: string | null
+  notificationProviderMessageId?: string | null
   notificationSentAt?: string | null
   notificationFailureReason?: string | null
   notificationReceiptStatus?: string | null
+  notificationReceiptSourceType?: string | null
   notificationReceiptAt?: string | null
   notificationReceiptFailureReason?: string | null
   reminderCount?: number | null
@@ -161,7 +173,7 @@ export interface AdminAiResumeFailureEscalationRoleOption {
   adminRoleId: number
   roleCode: string
   roleName: string
-  rolloutStage?: string | null
+  permissionStage?: string | null
 }
 
 export interface AdminAiResumeFailureCollaborationCatalog {
@@ -175,7 +187,6 @@ export interface AdminAiResumeQuotaUser {
   phone?: string | null
   realAuthStatus?: number | null
   level?: number | null
-  membershipTier?: string | null
   totalQuota?: number | null
   usedCount: number
 }
@@ -202,3 +213,96 @@ export interface AdminAiResumeHistoryQuery {
 }
 
 export type AdminAiResumeHistoryPageResult = PageResult<AdminAiResumeHistoryItem>
+
+export interface AiImageProviderPublicConfig {
+  endpoint?: string | null
+  region?: string | null
+  model?: string | null
+  modelVersion?: string | null
+  size?: string | null
+  quality?: string | null
+  responseFormat?: string | null
+  count?: number | null
+  watermark?: boolean | null
+  promptRewrite?: boolean | null
+  authHeader?: string | null
+  resolution?: string | null
+  connectTimeoutMs?: number | null
+  readTimeoutMs?: number | null
+  pollIntervalMs?: number | null
+  maxPollAttempts?: number | null
+  extraParamsJson?: string | null
+}
+
+export interface AdminAiImageProvider {
+  configId: number
+  providerCode: string
+  displayName: string
+  enabled: boolean
+  active: boolean
+  priority: number
+  publicConfig: AiImageProviderPublicConfig
+  secretConfigured: boolean
+  secretMask: Record<string, string>
+  secretUpdatedBy?: number | null
+  secretUpdatedByName?: string | null
+  secretUpdatedAt?: string | null
+  lastTestStatus?: string | null
+  lastTestMessage?: string | null
+  lastTestAt?: string | null
+  requiredSecretFields: string[]
+  requiredPublicFields: string[]
+  missingPublicFields: string[]
+  missingSecretFields: string[]
+  activationReady: boolean
+  createTime?: string | null
+  lastUpdate?: string | null
+}
+
+export interface AdminAiImageProviderPublicConfigSavePayload {
+  publicConfig: AiImageProviderPublicConfig
+  reason?: string
+}
+
+export interface AdminAiImageProviderSavePayload {
+  providerCode: string
+  displayName: string
+  enabled: boolean
+  priority: number
+  publicConfig: AiImageProviderPublicConfig
+  secrets?: Record<string, string>
+  reason?: string
+}
+
+export interface AdminAiImageProviderSecretSavePayload {
+  secrets: Record<string, string>
+  reason?: string
+}
+
+export interface AdminAiImageProviderActionPayload {
+  reason?: string
+  confirmText?: string
+}
+
+export interface AdminAiImageProviderRevealSecretResp {
+  providerCode: string
+  secrets: Record<string, string>
+  revealedAt?: string | null
+}
+
+export interface AdminAiImageProviderTestPayload {
+  sourceImageUrl?: string
+  prompt?: string
+  negativePrompt?: string
+  templateSceneCode?: string
+  styleCode?: string
+}
+
+export interface AdminAiImageProviderTestResult {
+  providerCode: string
+  modelCode?: string | null
+  status: string
+  message?: string | null
+  imageUrl?: string | null
+  elapsedMs?: number | null
+}

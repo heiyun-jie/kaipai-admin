@@ -8,6 +8,14 @@ import type {
   AdminAiResumeHistoryPageResult,
   AdminAiResumeHistoryQuery,
   AdminAiResumeOverview,
+  AdminAiImageProvider,
+  AdminAiImageProviderActionPayload,
+  AdminAiImageProviderPublicConfigSavePayload,
+  AdminAiImageProviderRevealSecretResp,
+  AdminAiImageProviderSavePayload,
+  AdminAiImageProviderSecretSavePayload,
+  AdminAiImageProviderTestPayload,
+  AdminAiImageProviderTestResult,
 } from '@/types/ai'
 
 export function fetchAdminAiResumeOverview() {
@@ -80,4 +88,50 @@ export function recordNotificationReceiptAdminAiResumeFailure(failureId: string,
 
 export function escalateAdminAiResumeFailure(failureId: string, payload: AdminAiResumeFailureActionPayload) {
   return request.post(`/admin/ai/resume/failures/${failureId}/escalate`, payload).then((data) => data as unknown as AdminAiResumeFailureItem)
+}
+
+export function fetchAdminAiImageProviders() {
+  return request.get('/admin/ai/image-providers').then((data) => data as unknown as AdminAiImageProvider[])
+}
+
+export function fetchAdminAiImageProvider(providerCode: string) {
+  return request.get(`/admin/ai/image-providers/${providerCode}`).then((data) => data as unknown as AdminAiImageProvider)
+}
+
+export function saveAdminAiImageProvider(payload: AdminAiImageProviderSavePayload) {
+  return request.post('/admin/ai/image-providers', payload).then((data) => data as unknown as AdminAiImageProvider)
+}
+
+export function saveAdminAiImageProviderPublicConfig(providerCode: string, payload: AdminAiImageProviderPublicConfigSavePayload) {
+  return request.put(`/admin/ai/image-providers/${providerCode}/public-config`, payload).then((data) => data as unknown as AdminAiImageProvider)
+}
+
+export function saveAdminAiImageProviderSecret(providerCode: string, payload: AdminAiImageProviderSecretSavePayload) {
+  return request.put(`/admin/ai/image-providers/${providerCode}/secret`, payload).then((data) => data as unknown as AdminAiImageProvider)
+}
+
+export function clearAdminAiImageProviderSecret(providerCode: string, payload: AdminAiImageProviderActionPayload) {
+  return request.post(`/admin/ai/image-providers/${providerCode}/clear-secret`, payload).then((data) => data as unknown as AdminAiImageProvider)
+}
+
+export function enableAdminAiImageProvider(providerCode: string, payload?: AdminAiImageProviderActionPayload) {
+  return request.post(`/admin/ai/image-providers/${providerCode}/enable`, payload || {}).then((data) => data as unknown as AdminAiImageProvider)
+}
+
+export function disableAdminAiImageProvider(providerCode: string, payload?: AdminAiImageProviderActionPayload) {
+  return request.post(`/admin/ai/image-providers/${providerCode}/disable`, payload || {}).then((data) => data as unknown as AdminAiImageProvider)
+}
+
+export function activateAdminAiImageProvider(providerCode: string, payload?: AdminAiImageProviderActionPayload) {
+  return request.post(`/admin/ai/image-providers/${providerCode}/activate`, payload || {}).then((data) => data as unknown as AdminAiImageProvider)
+}
+
+export function revealAdminAiImageProviderSecret(providerCode: string, payload: AdminAiImageProviderActionPayload) {
+  return request.post(`/admin/ai/image-providers/${providerCode}/reveal-secret`, payload).then((data) => data as unknown as AdminAiImageProviderRevealSecretResp)
+}
+
+export function testAdminAiImageProvider(providerCode: string, payload: AdminAiImageProviderTestPayload) {
+  return request
+    .post(`/admin/ai/image-providers/${providerCode}/test`, payload, { timeout: 180000 })
+    .then((data) => data as unknown as AdminAiImageProviderTestResult)
 }

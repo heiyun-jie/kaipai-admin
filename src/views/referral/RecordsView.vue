@@ -76,23 +76,30 @@
     </el-alert>
 
     <el-card class="table-card" shadow="never">
+      <div class="table-header">
+        <div>
+          <p class="table-header__eyebrow">REFERRAL RECORD / 邀请记录</p>
+          <h3>邀请记录清单</h3>
+        </div>
+        <span class="table-header__hint">围绕邀请码、邀请双方、生效时间和风险状态回看当前邀请事实链。</span>
+      </div>
       <el-table :data="rows" v-loading="loading">
         <el-table-column prop="referralId" label="邀请记录 ID" min-width="130" />
         <el-table-column prop="inviteCode" label="邀请码" min-width="120" />
         <el-table-column label="邀请人" min-width="180">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.inviterName || '--' }}</strong>
               <span>{{ row.inviterUserId ?? '--' }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column label="被邀请人" min-width="180">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.inviteeName || '--' }}</strong>
               <span>{{ row.inviteeUserId ?? '--' }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column label="邀请状态" min-width="110">
@@ -113,12 +120,14 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="120">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row.referralId, row)">查看详情</el-button>
+            <TableActions>
+              <el-button link type="primary" @click="openDetail(row.referralId, row)">查看详情</el-button>
+            </TableActions>
           </template>
         </el-table-column>
       </el-table>
       <div class="pager">
-        <el-pagination
+        <AdminPager
           v-model:current-page="filters.pageNo"
           v-model:page-size="filters.pageSize"
           layout="total, sizes, prev, pager, next"
@@ -130,51 +139,40 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" title="邀请记录详情" size="860px" destroy-on-close>
+    <AdminDetailDrawer v-model="detailVisible" title="邀请记录详情" size="860px" destroy-on-close>
       <div v-loading="detailLoading" class="detail-layout">
+        <section v-if="detail?.recordInfo" class="drawer-hero">
+          <div>
+            <p>REFERRAL DETAIL / 邀请记录</p>
+            <strong>{{ detail.recordInfo.inviteCode || '邀请记录详情' }}</strong>
+            <span>{{ detail.recordInfo.referralId ?? '--' }} · {{ (referralStatusMap[detail.recordInfo.status || 0] || referralStatusMap[0]).label }}</span>
+          </div>
+          <StatusTag v-bind="referralRiskFlagMap[detail.recordInfo.riskFlag || 0] || referralRiskFlagMap[0]" />
+        </section>
+
         <el-card class="detail-card" shadow="never">
           <template #header><h3>记录概览</h3></template>
-          <div class="detail-grid">
-            <div v-for="item in recordBlocks" :key="item.label" class="detail-block">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-            </div>
-          </div>
+          <DetailGrid :items="recordBlocks" />
         </el-card>
 
         <div class="detail-split">
           <el-card class="detail-card" shadow="never">
             <template #header><h3>邀请人</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in inviterBlocks" :key="item.label" class="detail-block">
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+            <DetailGrid :items="inviterBlocks" />
           </el-card>
 
           <el-card class="detail-card" shadow="never">
             <template #header><h3>被邀请人</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in inviteeBlocks" :key="item.label" class="detail-block">
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+            <DetailGrid :items="inviteeBlocks" />
           </el-card>
         </div>
 
         <el-card class="detail-card" shadow="never">
           <template #header><h3>风控与资格摘要</h3></template>
-          <div class="detail-grid">
-            <div v-for="item in riskBlocks" :key="item.label" class="detail-block">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-            </div>
-          </div>
+          <DetailGrid :items="riskBlocks" />
         </el-card>
       </div>
-    </el-drawer>
+    </AdminDetailDrawer>
   </PageContainer>
 </template>
 
@@ -189,13 +187,15 @@ import ReferralGovernanceNav from '@/components/business/ReferralGovernanceNav.v
 import StatusTag from '@/components/business/StatusTag.vue'
 import { referralRiskFlagMap, referralStatusMap } from '@/constants/status'
 import {
-  getDashboardContextFallbackSummary,
+  getDashboardContextSummary,
   getDashboardContextTitle,
   readRouteQueryString,
   resolveDashboardRouteSource,
 } from '@/utils/dashboard-context'
 import type { ReferralRecordDetail, ReferralRecordItem, ReferralRecordQuery } from '@/types/referral'
 import { formatDateTime, maskPhone, maskText } from '@/utils/format'
+import AdminPager from '@/components/business/AdminPager.vue'
+import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
 
 type DateRangeValue = [string, string] | []
 
@@ -306,7 +306,7 @@ const dashboardContextSummary = computed(() => {
   if (filters.registeredAtFrom && filters.registeredAtTo) {
     parts.push(`注册时间 ${formatDateTime(filters.registeredAtFrom)} 至 ${formatDateTime(filters.registeredAtTo)}`)
   }
-  return parts.join('；') || getDashboardContextFallbackSummary(dashboardContextSource.value)
+  return parts.join('；') || getDashboardContextSummary(dashboardContextSource.value)
 })
 
 const riskBlocks = computed(() => {
@@ -417,11 +417,6 @@ watch(
 </script>
 
 <style scoped lang="scss">
-.table-card,
-.detail-card {
-  border: 1px solid var(--kp-border);
-  background: var(--kp-surface);
-}
 
 .context-alert {
   margin-bottom: 16px;
@@ -434,67 +429,7 @@ watch(
   gap: 12px;
 }
 
-.stack-cell {
-  display: grid;
-
-  strong {
-    font-size: 13px;
-  }
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-}
-
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
-}
-
-.detail-layout {
-  display: grid;
-  gap: 16px;
-}
-
-.detail-split {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-block {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(47, 36, 27, 0.05);
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 14px;
-    line-height: 1.6;
-    word-break: break-all;
-  }
-}
-
 @media (max-width: 960px) {
-  .detail-split,
-  .detail-grid {
-    grid-template-columns: 1fr;
-  }
-
   .context-alert__content {
     align-items: flex-start;
     flex-direction: column;

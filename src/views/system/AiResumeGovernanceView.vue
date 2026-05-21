@@ -22,10 +22,10 @@
           <el-table-column prop="userId" label="用户 ID" min-width="110" />
           <el-table-column label="用户" min-width="180">
             <template #default="{ row }">
-              <div class="stack-cell">
+              <StackCell>
                 <strong>{{ row.userName || '--' }}</strong>
                 <span>{{ maskPhone(row.phone) }}</span>
-              </div>
+              </StackCell>
             </template>
           </el-table-column>
           <el-table-column label="实名" min-width="110">
@@ -33,8 +33,8 @@
               <StatusTag v-bind="getRealAuthTag(row.realAuthStatus)" />
             </template>
           </el-table-column>
-          <el-table-column label="等级 / 会员" min-width="150">
-            <template #default="{ row }">{{ formatLevel(row.level, row.membershipTier) }}</template>
+          <el-table-column label="等级" min-width="120">
+            <template #default="{ row }">{{ formatLevel(row.level) }}</template>
           </el-table-column>
           <el-table-column label="本月已用 / 总配额" min-width="160">
             <template #default="{ row }">{{ row.usedCount ?? 0 }} / {{ row.totalQuota ?? '--' }}</template>
@@ -180,21 +180,21 @@
         <template #header>
           <div class="card-head">
             <div>
-              <h3>Failure Samples</h3>
-              <p>回看最近 AI 润色失败样本，优先定位不可解析响应、超时和上下文异常。</p>
+              <h3>AI 润色失败记录</h3>
+              <p>回看最近 AI 润色失败记录，优先定位不可解析响应、超时和上下文异常。</p>
             </div>
           </div>
         </template>
-        <el-table :data="failures" v-loading="failureLoading" empty-text="暂无失败样本">
+        <el-table class="governance-failure-table" :data="failures" v-loading="failureLoading" empty-text="暂无失败记录" max-height="760">
           <el-table-column label="时间" min-width="160">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
           <el-table-column label="用户" min-width="180">
             <template #default="{ row }">
-              <div class="stack-cell">
+              <StackCell>
                 <strong>{{ row.userName || '--' }}</strong>
                 <span>{{ row.userId ?? '--' }} · {{ maskPhone(row.phone) }}</span>
-              </div>
+              </StackCell>
             </template>
           </el-table-column>
           <el-table-column label="类型" min-width="120">
@@ -207,43 +207,44 @@
               <StatusTag v-bind="getFailureHandlingTag(row.handlingStatus)" />
             </template>
           </el-table-column>
-          <el-table-column prop="errorCode" label="错误码" min-width="100" />
-          <el-table-column prop="errorMessage" label="错误信息" min-width="220" show-overflow-tooltip />
-          <el-table-column prop="instruction" label="用户指令" min-width="260" show-overflow-tooltip />
-          <el-table-column label="责任协同" min-width="220">
+          <el-table-column prop="errorCode" label="错误码" min-width="90" />
+          <el-table-column prop="errorMessage" label="错误信息" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="instruction" label="用户指令" min-width="220" show-overflow-tooltip />
+          <el-table-column label="责任协同" min-width="240">
             <template #default="{ row }">
-              <div class="stack-cell">
+              <div class="failure-collaboration-cell" :title="formatFailureCollaborationTitle(row)">
                 <div class="stack-cell__head">
                   <strong>{{ row.assignedAdminName || '未分派' }}</strong>
                   <StatusTag v-bind="getFailureCollaborationTag(row.collaborationStatus)" />
                 </div>
-                <div class="tag-cluster">
+                <div class="tag-cluster failure-collaboration-cell__tags">
                   <StatusTag v-bind="getFailureNotificationTag(row.notificationStatus)" />
                   <StatusTag v-bind="getFailureReceiptTag(row.notificationReceiptStatus)" />
                   <StatusTag v-bind="getFailureAutoRemindTag(row.autoRemindStage)" />
                   <StatusTag v-bind="getFailureSlaTag(row.slaStatus)" />
                 </div>
-                <span>{{ formatAssignmentAckStatus(row) }}</span>
-                <span>{{ formatFailureNotification(row) }}</span>
-                <span>{{ formatFailureClaimDeadline(row) }}</span>
-                <span>{{ formatFailureReminder(row) }}</span>
-                <span>{{ row.escalationRoleName || row.escalationRoleCode || '未设置升级目标' }}</span>
+                <div class="tag-cluster tag-cluster--secondary failure-collaboration-cell__source">
+                  <StatusTag v-if="row.notificationSourceType" v-bind="getNotificationSourceTag(row.notificationSourceType)" />
+                  <StatusTag v-if="row.notificationReceiptSourceType" v-bind="getNotificationReceiptSourceTag(row.notificationReceiptSourceType)" />
+                </div>
+                <span class="failure-collaboration-cell__meta">{{ formatFailureNotification(row) }}</span>
+                <span class="failure-collaboration-cell__meta">{{ formatFailureCompactMeta(row) }}</span>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="最近处置" min-width="220">
+          <el-table-column label="最近处置" min-width="190">
             <template #default="{ row }">
-              <div class="stack-cell">
+              <div class="stack-cell failure-handling-cell" :title="formatFailureHandlingTitle(row)">
                 <strong>{{ row.handledByAdminName || '--' }}</strong>
                 <span>{{ row.handledAt ? formatDateTime(row.handledAt) : '待处理' }}</span>
                 <span>{{ row.handlingNotes?.length || 0 }} 条处置记录</span>
-                <span>{{ row.handlingNote || '--' }}</span>
+                <span class="failure-handling-cell__note">{{ row.handlingNote || '--' }}</span>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="操作" fixed="right" min-width="500">
+          <el-table-column label="操作" fixed="right" min-width="460">
             <template #default="{ row }">
-              <div class="table-actions">
+              <TableActions>
                 <el-button link @click="openFailureDetail(row)">处置记录</el-button>
                 <PermissionButton
                   link
@@ -352,7 +353,7 @@
                 >
                   关闭归档
                 </PermissionButton>
-              </div>
+              </TableActions>
             </template>
           </el-table-column>
         </el-table>
@@ -367,16 +368,16 @@
             </div>
           </div>
         </template>
-        <el-table :data="sensitiveHits" v-loading="failureLoading" empty-text="暂无敏感命中样本">
+        <el-table class="governance-sensitive-table" :data="sensitiveHits" v-loading="failureLoading" empty-text="暂无敏感命中样本" max-height="760">
           <el-table-column label="时间" min-width="160">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
           <el-table-column label="用户" min-width="180">
             <template #default="{ row }">
-              <div class="stack-cell">
+              <StackCell>
                 <strong>{{ row.userName || '--' }}</strong>
                 <span>{{ row.userId ?? '--' }} · {{ maskPhone(row.phone) }}</span>
-              </div>
+              </StackCell>
             </template>
           </el-table-column>
           <el-table-column label="命中词" min-width="120">
@@ -387,32 +388,33 @@
               <StatusTag v-bind="getFailureHandlingTag(row.handlingStatus)" />
             </template>
           </el-table-column>
-          <el-table-column label="责任协同" min-width="220">
+          <el-table-column label="责任协同" min-width="240">
             <template #default="{ row }">
-              <div class="stack-cell">
+              <div class="failure-collaboration-cell" :title="formatFailureCollaborationTitle(row)">
                 <div class="stack-cell__head">
                   <strong>{{ row.assignedAdminName || '未分派' }}</strong>
                   <StatusTag v-bind="getFailureCollaborationTag(row.collaborationStatus)" />
                 </div>
-                <div class="tag-cluster">
+                <div class="tag-cluster failure-collaboration-cell__tags">
                   <StatusTag v-bind="getFailureNotificationTag(row.notificationStatus)" />
                   <StatusTag v-bind="getFailureReceiptTag(row.notificationReceiptStatus)" />
                   <StatusTag v-bind="getFailureAutoRemindTag(row.autoRemindStage)" />
                   <StatusTag v-bind="getFailureSlaTag(row.slaStatus)" />
                 </div>
-                <span>{{ formatAssignmentAckStatus(row) }}</span>
-                <span>{{ formatFailureNotification(row) }}</span>
-                <span>{{ formatFailureClaimDeadline(row) }}</span>
-                <span>{{ formatFailureReminder(row) }}</span>
-                <span>{{ row.escalationRoleName || row.escalationRoleCode || '未设置升级目标' }}</span>
+                <div class="tag-cluster tag-cluster--secondary failure-collaboration-cell__source">
+                  <StatusTag v-if="row.notificationSourceType" v-bind="getNotificationSourceTag(row.notificationSourceType)" />
+                  <StatusTag v-if="row.notificationReceiptSourceType" v-bind="getNotificationReceiptSourceTag(row.notificationReceiptSourceType)" />
+                </div>
+                <span class="failure-collaboration-cell__meta">{{ formatFailureNotification(row) }}</span>
+                <span class="failure-collaboration-cell__meta">{{ formatFailureCompactMeta(row) }}</span>
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="errorMessage" label="结果" min-width="180" show-overflow-tooltip />
-          <el-table-column prop="instruction" label="用户指令" min-width="260" show-overflow-tooltip />
-          <el-table-column label="操作" fixed="right" min-width="500">
+          <el-table-column prop="errorMessage" label="结果" min-width="170" show-overflow-tooltip />
+          <el-table-column prop="instruction" label="用户指令" min-width="220" show-overflow-tooltip />
+          <el-table-column label="操作" fixed="right" min-width="460">
             <template #default="{ row }">
-              <div class="table-actions">
+              <TableActions>
                 <el-button link @click="openFailureDetail(row)">处置记录</el-button>
                 <PermissionButton
                   link
@@ -521,14 +523,14 @@
                 >
                   关闭归档
                 </PermissionButton>
-              </div>
+              </TableActions>
             </template>
           </el-table-column>
         </el-table>
       </el-card>
     </section>
 
-    <section>
+    <section v-if="canReadOperationLogs">
       <el-card class="surface-card" shadow="never">
         <template #header>
           <div class="card-head">
@@ -637,10 +639,10 @@
         <el-table-column prop="historyId" label="历史 ID" min-width="180" show-overflow-tooltip />
         <el-table-column label="用户" min-width="180">
           <template #default="{ row }">
-            <div class="stack-cell">
+            <StackCell>
               <strong>{{ row.userName || '--' }}</strong>
               <span>{{ row.userId ?? '--' }} · {{ maskPhone(row.phone) }}</span>
-            </div>
+            </StackCell>
           </template>
         </el-table-column>
         <el-table-column label="实名" min-width="100">
@@ -648,8 +650,8 @@
             <StatusTag v-bind="getRealAuthTag(row.realAuthStatus)" />
           </template>
         </el-table-column>
-        <el-table-column label="等级 / 会员" min-width="150">
-          <template #default="{ row }">{{ formatLevel(row.level, row.membershipTier) }}</template>
+        <el-table-column label="等级" min-width="120">
+          <template #default="{ row }">{{ formatLevel(row.level) }}</template>
         </el-table-column>
         <el-table-column label="状态" min-width="110">
           <template #default="{ row }">
@@ -670,7 +672,7 @@
         </el-table-column>
       </el-table>
       <div class="pager">
-        <el-pagination
+        <AdminPager
           v-model:current-page="filters.pageNo"
           v-model:page-size="filters.pageSize"
           layout="total, sizes, prev, pager, next"
@@ -682,17 +684,26 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="detailVisible" title="AI 简历历史详情" size="980px" destroy-on-close>
+    <AdminDetailDrawer v-model="detailVisible" title="AI 简历历史详情" size="980px" destroy-on-close>
       <div v-loading="detailLoading" class="detail-layout">
         <template v-if="detail">
+          <section class="drawer-hero">
+            <div>
+              <p>AI HISTORY / 历史详情</p>
+              <strong>{{ detail.historyId || 'AI 简历历史详情' }}</strong>
+              <span>{{ detail.userName || detail.userId || '--' }} · {{ detail.requestId || '--' }}</span>
+            </div>
+            <StatusTag v-bind="getHistoryStatusTag(detail.status)" />
+          </section>
+
           <el-card class="surface-card" shadow="never">
             <template #header><h3>治理概览</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in detailBlocks" :key="item.label" class="detail-block">
+            <DetailGrid>
+              <DetailBlock v-for="item in detailBlocks" :key="item.label">
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+              </DetailBlock>
+            </DetailGrid>
           </el-card>
 
           <div class="detail-split">
@@ -741,19 +752,28 @@
           </div>
         </template>
       </div>
-    </el-drawer>
+    </AdminDetailDrawer>
 
-    <el-drawer v-model="auditDetailVisible" title="AI 治理动作详情" size="860px" destroy-on-close>
+    <AdminDetailDrawer v-model="auditDetailVisible" title="AI 治理动作详情" size="860px" destroy-on-close>
       <div v-loading="auditDetailLoading" class="detail-layout">
         <template v-if="auditDetail">
+          <section class="drawer-hero">
+            <div>
+              <p>AI AUDIT / 动作详情</p>
+              <strong>{{ auditDetail.operationCode || 'AI 治理动作详情' }}</strong>
+              <span>{{ auditDetail.adminUserName || auditDetail.adminUserId || '--' }} · {{ auditDetail.requestId || '--' }}</span>
+            </div>
+            <StatusTag :label="auditDetail.operationResult === 1 ? '成功' : '失败'" :tone="auditDetail.operationResult === 1 ? 'success' : 'danger'" />
+          </section>
+
           <el-card class="surface-card" shadow="never">
             <template #header><h3>动作概览</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in auditDetailBlocks" :key="item.label" class="detail-block">
+            <DetailGrid>
+              <DetailBlock v-for="item in auditDetailBlocks" :key="item.label">
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+              </DetailBlock>
+            </DetailGrid>
           </el-card>
 
           <el-card class="surface-card" shadow="never">
@@ -774,37 +794,56 @@
           </div>
         </template>
       </div>
-    </el-drawer>
+    </AdminDetailDrawer>
 
-    <el-drawer v-model="failureDetailVisible" title="AI 失败样本处置记录" size="760px" destroy-on-close>
+    <AdminDetailDrawer v-model="failureDetailVisible" title="AI 失败样本处置记录" size="760px" destroy-on-close>
       <div class="detail-layout">
         <template v-if="failureDetail">
+          <section class="drawer-hero">
+            <div>
+              <p>AI FAILURE / 失败样本</p>
+              <strong>{{ failureDetail.failureId || 'AI 失败样本处置记录' }}</strong>
+              <span>{{ failureDetail.userName || failureDetail.userId || '--' }} · {{ failureDetail.failureType || '--' }}</span>
+            </div>
+            <StatusTag v-bind="getFailureHandlingTag(failureDetail.handlingStatus)" />
+          </section>
+
           <el-card class="surface-card" shadow="never">
             <template #header><h3>样本概览</h3></template>
-            <div class="detail-grid">
-              <div v-for="item in failureDetailBlocks" :key="item.label" class="detail-block">
+            <DetailGrid>
+              <DetailBlock v-for="item in failureDetailBlocks" :key="item.label">
                 <span>{{ item.label }}</span>
                 <strong>{{ item.value }}</strong>
-              </div>
-            </div>
+              </DetailBlock>
+            </DetailGrid>
+          </el-card>
+
+          <el-card class="surface-card" shadow="never">
+            <template #header><h3>通知诊断</h3></template>
+            <DetailGrid>
+              <DetailBlock v-for="item in failureNotificationBlocks" :key="item.label">
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </DetailBlock>
+            </DetailGrid>
           </el-card>
 
           <el-card class="surface-card" shadow="never">
             <template #header><h3>失败上下文</h3></template>
-            <div class="detail-grid">
-              <div class="detail-block">
+            <DetailGrid>
+              <DetailBlock>
                 <span>错误信息</span>
                 <strong>{{ failureDetail.errorMessage || '--' }}</strong>
-              </div>
-              <div class="detail-block">
+              </DetailBlock>
+              <DetailBlock>
                 <span>命中词</span>
                 <strong>{{ failureDetail.hitKeyword || '--' }}</strong>
-              </div>
-              <div class="detail-block detail-block--full">
+              </DetailBlock>
+              <DetailBlock wide>
                 <span>用户指令</span>
                 <strong>{{ failureDetail.instruction || '--' }}</strong>
-              </div>
-            </div>
+              </DetailBlock>
+            </DetailGrid>
           </el-card>
 
           <el-card class="surface-card" shadow="never">
@@ -829,9 +868,14 @@
           </el-card>
         </template>
       </div>
-    </el-drawer>
+    </AdminDetailDrawer>
 
     <el-dialog v-model="actionVisible" :title="actionDialogTitle" width="520px" destroy-on-close @closed="closeFailureActionDialog">
+      <section class="dialog-intro">
+        <p class="dialog-intro__eyebrow">AI FAILURE ACTION / 样本处置</p>
+        <strong>{{ actionDialogTitle }}</strong>
+        <p>沿当前 AI 治理主链执行分派、接手、催办、通知和关闭动作。</p>
+      </section>
       <div class="action-dialog">
         <ul v-if="actionMeta.length" class="dialog-meta">
           <li v-for="item in actionMeta" :key="item.label">
@@ -915,7 +959,9 @@ import FilterPanel from '@/components/business/FilterPanel.vue'
 import PermissionButton from '@/components/business/PermissionButton.vue'
 import PageContainer from '@/components/business/PageContainer.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
+import { PERMISSIONS } from '@/constants/permission'
 import { useAuthStore } from '@/stores/auth'
+import { usePermissionStore } from '@/stores/permission'
 import type {
   AdminAiResumeFailureAssigneeOption,
   AdminAiResumeFailureCollaborationCatalog,
@@ -928,6 +974,8 @@ import type {
 } from '@/types/ai'
 import type { AdminOperationLogDetail, AdminOperationLogItem, AdminOperationLogQuery } from '@/types/system'
 import { formatDateTime, maskPhone } from '@/utils/format'
+import AdminPager from '@/components/business/AdminPager.vue'
+import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
 
 type FailureActionMode =
   | 'assign'
@@ -944,6 +992,8 @@ type FailureActionMode =
   | 'escalate'
 
 const authStore = useAuthStore()
+const permissionStore = usePermissionStore()
+const canReadOperationLogs = computed(() => permissionStore.hasPage(PERMISSIONS.page.systemOperationLogs))
 
 const overviewLoading = ref(false)
 const tableLoading = ref(false)
@@ -1080,7 +1130,7 @@ const detailBlocks = computed(() => {
     { label: '用户', value: `${detail.value.userName || '--'} / ${detail.value.userId ?? '--'}` },
     { label: '手机号', value: maskPhone(detail.value.phone) },
     { label: '实名状态', value: getRealAuthTag(detail.value.realAuthStatus).label },
-    { label: '等级 / 会员', value: formatLevel(detail.value.level, detail.value.membershipTier) },
+    { label: '等级', value: formatLevel(detail.value.level) },
     { label: '状态', value: getHistoryStatusTag(detail.value.status).label },
     { label: 'Patch 数', value: detail.value.patchCount ?? 0 },
     { label: '草稿 ID', value: detail.value.draftId || '--' },
@@ -1166,16 +1216,16 @@ const actionConfirmText = computed(() => {
 })
 const actionPlaceholder = computed(() => {
   if (actionMode.value === 'assign') {
-    return '请输入分派原因、协同说明或后续跟进要求'
+    return '请输入分派原因、协同说明或处理要求'
   }
   if (actionMode.value === 'acknowledge') {
     return '请输入接手说明、预计处理方向或当前判断'
   }
   if (actionMode.value === 'review') {
-    return '请输入复核结论、人工判断或补充备注'
+    return '请输入复核结论、人工判断或处理备注'
   }
   if (actionMode.value === 'remind') {
-    return '请输入催办原因、催办对象感知或后续跟进要求'
+    return '请输入催办原因、催办对象感知或处理要求'
   }
   if (actionMode.value === 'recordNotification') {
     return '请输入通知渠道、发送说明或失败原因'
@@ -1184,21 +1234,21 @@ const actionPlaceholder = computed(() => {
     return '请输入送达说明、回执来源或失败原因'
   }
   if (actionMode.value === 'manualTakeover') {
-    return '请输入接管原因、接管背景或后续处置计划'
+    return '请输入接管原因、接管背景或处置计划'
   }
   if (actionMode.value === 'skipAutoRemind') {
-    return '请输入跳过原因、人工兜底说明或后续处理安排'
+    return '请输入跳过原因、人工处理说明或处理安排'
   }
   if (actionMode.value === 'escalate') {
-    return '请输入升级原因、转人工说明或后续跟进要求'
+    return '请输入升级原因、转人工说明或处理要求'
   }
   if (actionMode.value === 'ignore') {
-    return '请输入忽略原因、误报判断或无需继续跟进的说明'
+    return '请输入忽略原因、误报判断或无需跟进的说明'
   }
   if (actionMode.value === 'close') {
     return '请输入关闭原因、处置结论或归档说明'
   }
-  return '请输入建议重试原因、观察结论或后续动作'
+  return '请输入建议重试原因、观察结论或处理动作'
 })
 const actionMeta = computed(() => [
   { label: '失败样本', value: currentFailure.value?.failureId || '--' },
@@ -1209,13 +1259,21 @@ const actionMeta = computed(() => [
   { label: '协同状态', value: getFailureCollaborationTag(currentFailure.value?.collaborationStatus).label },
   { label: '通知状态', value: getFailureNotificationTag(currentFailure.value?.notificationStatus).label },
   { label: '回执状态', value: getFailureReceiptTag(currentFailure.value?.notificationReceiptStatus).label },
+  { label: '投递记录', value: currentFailure.value?.notificationDeliveryId ?? '--' },
+  { label: '通知主链', value: formatNotificationSourceLabel(currentFailure.value?.notificationSourceType) },
+  { label: '回执主链', value: formatNotificationReceiptSourceLabel(currentFailure.value?.notificationReceiptSourceType) },
+  { label: '通知通道', value: formatNotificationChannelLabel(currentFailure.value?.notificationChannelCode) },
+  { label: '接收人', value: currentFailure.value?.notificationRecipient || '未解析到接收地址' },
+  { label: 'Provider', value: formatNotificationProviderLabel(currentFailure.value?.notificationProviderCode) },
+  { label: '消息标识', value: currentFailure.value?.notificationProviderMessageId || '尚未回填' },
   { label: '催办阶段', value: getFailureAutoRemindTag(currentFailure.value?.autoRemindStage).label },
   { label: 'SLA 状态', value: getFailureSlaTag(currentFailure.value?.slaStatus).label },
   { label: '签收 SLA', value: formatDateTime(currentFailure.value?.claimDeadlineAt) },
   { label: '最近通知', value: formatDateTime(currentFailure.value?.notificationSentAt) },
-  { label: '通知异常', value: currentFailure.value?.notificationFailureReason || '--' },
+  { label: '通知异常', value: currentFailure.value?.notificationFailureReason || '无' },
   { label: '最近回执', value: formatDateTime(currentFailure.value?.notificationReceiptAt) },
-  { label: '回执异常', value: currentFailure.value?.notificationReceiptFailureReason || '--' },
+  { label: '回执异常', value: currentFailure.value?.notificationReceiptFailureReason || '无' },
+  { label: '通知诊断', value: formatFailureDeliveryDiagnosis(currentFailure.value) },
   { label: '手工接管', value: formatFailureManualTakeoverValue(currentFailure.value) },
   { label: '跳过催办', value: formatFailureSkipAutoRemindValue(currentFailure.value) },
   { label: '最近催办', value: formatFailureReminderValue(currentFailure.value) },
@@ -1250,6 +1308,13 @@ const failureDetailBlocks = computed(() => {
     { label: '协同状态', value: getFailureCollaborationTag(failureDetail.value.collaborationStatus).label },
     { label: '通知状态', value: getFailureNotificationTag(failureDetail.value.notificationStatus).label },
     { label: '回执状态', value: getFailureReceiptTag(failureDetail.value.notificationReceiptStatus).label },
+    { label: '投递记录', value: failureDetail.value.notificationDeliveryId ?? '--' },
+    { label: '通知来源', value: formatNotificationSourceLabel(failureDetail.value.notificationSourceType) },
+    { label: '回执来源', value: formatNotificationReceiptSourceLabel(failureDetail.value.notificationReceiptSourceType) },
+    { label: '通知通道', value: formatNotificationChannelLabel(failureDetail.value.notificationChannelCode) },
+    { label: '通知 Provider', value: formatNotificationProviderLabel(failureDetail.value.notificationProviderCode) },
+    { label: '接收人', value: failureDetail.value.notificationRecipient || '未解析到接收地址' },
+    { label: '消息标识', value: failureDetail.value.notificationProviderMessageId || '尚未回填' },
     { label: '催办阶段', value: getFailureAutoRemindTag(failureDetail.value.autoRemindStage).label },
     { label: 'SLA 状态', value: getFailureSlaTag(failureDetail.value.slaStatus).label },
     { label: '最近通知', value: formatDateTime(failureDetail.value.notificationSentAt) },
@@ -1267,6 +1332,21 @@ const failureDetailBlocks = computed(() => {
     { label: '错误码', value: failureDetail.value.errorCode ?? '--' },
     { label: '创建时间', value: formatDateTime(failureDetail.value.createdAt) },
     { label: '最近处理', value: formatDateTime(failureDetail.value.handledAt) },
+  ]
+})
+const failureNotificationBlocks = computed(() => {
+  if (!failureDetail.value) {
+    return []
+  }
+  return [
+    { label: '通知主链', value: formatNotificationSourceLabel(failureDetail.value.notificationSourceType) },
+    { label: '回执主链', value: formatNotificationReceiptSourceLabel(failureDetail.value.notificationReceiptSourceType) },
+    { label: '通知通道', value: formatNotificationChannelLabel(failureDetail.value.notificationChannelCode) },
+    { label: '通知 Provider', value: formatNotificationProviderLabel(failureDetail.value.notificationProviderCode) },
+    { label: '接收人状态', value: formatFailureRecipientStatus(failureDetail.value) },
+    { label: '接收人', value: failureDetail.value.notificationRecipient || '未解析到接收地址' },
+    { label: '消息标识', value: failureDetail.value.notificationProviderMessageId || '尚未回填' },
+    { label: '当前排障结论', value: formatFailureDeliveryDiagnosis(failureDetail.value) },
   ]
 })
 
@@ -1345,6 +1425,20 @@ function getFailureCollaborationTag(status?: string | null) {
     return { label: '待签收', tone: 'warning' as const }
   }
   return { label: '未分派', tone: 'info' as const }
+}
+
+function getNotificationSourceTag(sourceType?: string | null) {
+  return {
+    label: formatNotificationSourceLabel(sourceType),
+    tone: sourceType === 'manual_admin_record' ? 'warning' as const : 'info' as const,
+  }
+}
+
+function getNotificationReceiptSourceTag(sourceType?: string | null) {
+  return {
+    label: formatNotificationReceiptSourceLabel(sourceType),
+    tone: sourceType === 'provider_callback' ? 'success' as const : 'warning' as const,
+  }
 }
 
 function getFailureNotificationTag(status?: string | null) {
@@ -1500,9 +1594,9 @@ function getGovernanceOperationLabel(operationCode?: string | null) {
   return operationCode || '--'
 }
 
-function formatLevel(level?: number | null, membershipTier?: string | null) {
+function formatLevel(level?: number | null) {
   const levelText = level == null ? 'L--' : `L${level}`
-  return membershipTier ? `${levelText} / ${membershipTier}` : levelText
+  return levelText
 }
 
 function formatAssigneeOptionLabel(option: AdminAiResumeFailureAssigneeOption) {
@@ -1512,6 +1606,52 @@ function formatAssigneeOptionLabel(option: AdminAiResumeFailureAssigneeOption) {
 
 function formatEscalationRoleOptionLabel(option: AdminAiResumeFailureEscalationRoleOption) {
   return `${option.roleName} (${option.roleCode})`
+}
+
+function formatNotificationSourceLabel(sourceType?: string | null) {
+  if (sourceType === 'admin_dispatch') {
+    return '后台主链发送'
+  }
+  if (sourceType === 'governance_sweep') {
+    return '定时催办发送'
+  }
+  if (sourceType === 'manual_admin_record') {
+    return '人工补录发送'
+  }
+  return sourceType || '--'
+}
+
+function formatNotificationReceiptSourceLabel(sourceType?: string | null) {
+  if (sourceType === 'provider_callback') {
+    return '供应商回执'
+  }
+  if (sourceType === 'manual_admin_receipt') {
+    return '人工补录回执'
+  }
+  return sourceType || '--'
+}
+
+function formatNotificationChannelLabel(channelCode?: string | null) {
+  if (channelCode === 'sms') {
+    return '短信'
+  }
+  if (channelCode === 'email') {
+    return '邮件'
+  }
+  if (channelCode === 'manual') {
+    return '人工'
+  }
+  if (channelCode === 'webhook') {
+    return 'Webhook'
+  }
+  return channelCode || '--'
+}
+
+function formatNotificationProviderLabel(providerCode?: string | null) {
+  if (providerCode === 'manual') {
+    return 'manual（人工记录）'
+  }
+  return providerCode || '--'
 }
 
 function formatFailureTimelineMeta(note: NonNullable<AdminAiResumeFailureItem['handlingNotes']>[number]) {
@@ -1529,9 +1669,15 @@ function formatFailureTimelineMeta(note: NonNullable<AdminAiResumeFailureItem['h
     const notificationMeta = note.notificationSentAt ? formatDateTime(note.notificationSentAt) : '失败'
     parts.push(`通知：${notificationMeta}${note.notificationFailureReason ? ` / ${note.notificationFailureReason}` : ''}`)
   }
+  if (note.notificationSourceType || note.notificationChannelCode || note.notificationRecipient) {
+    parts.push(`投递：${formatNotificationSourceLabel(note.notificationSourceType)} / ${formatNotificationChannelLabel(note.notificationChannelCode)} / ${note.notificationRecipient || '未解析到接收地址'}`)
+  }
   if (note.notificationReceiptAt || note.notificationReceiptFailureReason) {
     const receiptMeta = note.notificationReceiptAt ? formatDateTime(note.notificationReceiptAt) : '失败'
     parts.push(`回执：${receiptMeta}${note.notificationReceiptFailureReason ? ` / ${note.notificationReceiptFailureReason}` : ''}`)
+  }
+  if (note.notificationReceiptSourceType) {
+    parts.push(`回执来源：${formatNotificationReceiptSourceLabel(note.notificationReceiptSourceType)}`)
   }
   if (note.lastRemindedAt) {
     const reminderOperator = note.lastRemindedByAdminName || note.lastRemindedByAdminId || '--'
@@ -1560,24 +1706,117 @@ function formatAssignmentAckStatus(row: AdminAiResumeFailureItem) {
 function formatFailureNotification(row: AdminAiResumeFailureItem) {
   const sentAt = row.notificationSentAt ? formatDateTime(row.notificationSentAt) : ''
   const receiptAt = row.notificationReceiptAt ? formatDateTime(row.notificationReceiptAt) : ''
+  const source = formatNotificationSourceLabel(row.notificationSourceType)
   if (row.notificationFailureReason) {
-    return `通知失败 · ${row.notificationFailureReason}`
+    return `${source} · 通知失败 · ${row.notificationFailureReason}`
   }
   if (row.notificationReceiptFailureReason) {
-    return `回执失败 · ${row.notificationReceiptFailureReason}`
+    return `${source} · 回执失败 · ${row.notificationReceiptFailureReason}`
   }
   if (sentAt && receiptAt) {
-    return `通知 ${sentAt} · 回执 ${receiptAt}`
+    return `${source} · 通知 ${sentAt} · 回执 ${receiptAt}`
   }
   if (sentAt) {
-    return `通知 ${sentAt}`
+    return `${source} · 通知 ${sentAt}`
   }
   return getFailureNotificationTag(row.notificationStatus).label
+}
+
+function formatFailureDeliveryContext(row: AdminAiResumeFailureItem) {
+  const source = formatNotificationSourceLabel(row.notificationSourceType)
+  const channel = formatNotificationChannelLabel(row.notificationChannelCode)
+  const provider = formatNotificationProviderLabel(row.notificationProviderCode)
+  const recipient = row.notificationRecipient || '未解析到接收地址'
+  return `投递链：${source} / ${channel} / ${provider} / ${recipient}`
+}
+
+function formatFailureRecipientStatus(row?: AdminAiResumeFailureItem | null) {
+  if (!row?.assignedAdminId) {
+    return '未分派责任人，主链不会解析接收地址'
+  }
+  if (row.notificationRecipient) {
+    return '已解析到责任人接收地址'
+  }
+  if (row.notificationFailureReason === 'recipient_contact_missing') {
+    return '责任人缺少手机号或邮箱'
+  }
+  return '责任人已存在，但当前未看到可用接收地址'
+}
+
+function formatFailureDeliveryDiagnosis(row?: AdminAiResumeFailureItem | null) {
+  if (!row) {
+    return '--'
+  }
+  if (!row.assignedAdminId) {
+    return '阻塞：尚未分派责任人，不能进入真实通知主链'
+  }
+  if (row.notificationFailureReason === 'recipient_contact_missing') {
+    return '阻塞：责任人缺少手机号或邮箱，真实发送不会成功'
+  }
+  if (row.notificationSourceType === 'manual_admin_record') {
+    return '当前通知事实来自人工补录，不是系统真实发送'
+  }
+  if (row.notificationReceiptSourceType === 'manual_admin_receipt') {
+    return '当前回执来自人工补录，还没有供应商回流事实'
+  }
+  if (row.notificationReceiptSourceType === 'provider_callback') {
+    return '供应商回执已回流，可按 provider messageId 排查'
+  }
+  if (row.notificationStatus === 'pending_send') {
+    return '尚未触发真实发送'
+  }
+  if (row.notificationStatus === 'send_failed') {
+    return `发送失败：${row.notificationFailureReason || '请查看处理备注与 provider 返回'}`
+  }
+  if (row.notificationStatus === 'sent' && !row.notificationProviderMessageId) {
+    return '已进入发送链，但尚未看到 provider messageId 回填'
+  }
+  if (row.notificationStatus === 'sent' && row.notificationReceiptStatus === 'pending_receipt') {
+    return '发送已完成，当前尚未收到回执'
+  }
+  return '当前通知链无显式阻塞，可查看回执与签收流转'
 }
 
 function formatFailureClaimDeadline(row: AdminAiResumeFailureItem) {
   const deadline = row.claimDeadlineAt ? formatDateTime(row.claimDeadlineAt) : '未设置签收 SLA'
   return `${getFailureSlaTag(row.slaStatus).label} · ${row.claimDeadlineAt ? `签收 ${deadline}` : deadline}`
+}
+
+function formatFailureCompactMeta(row: AdminAiResumeFailureItem) {
+  const escalation = row.escalationRoleName || row.escalationRoleCode || '未设置升级目标'
+  return [
+    formatAssignmentAckStatus(row),
+    formatFailureClaimDeadline(row),
+    formatFailureReminder(row),
+    `升级 ${escalation}`,
+  ].join(' · ')
+}
+
+function formatFailureCollaborationTitle(row: AdminAiResumeFailureItem) {
+  return [
+    `责任人：${row.assignedAdminName || '未分派'}`,
+    `协同状态：${getFailureCollaborationTag(row.collaborationStatus).label}`,
+    `通知状态：${getFailureNotificationTag(row.notificationStatus).label}`,
+    `回执状态：${getFailureReceiptTag(row.notificationReceiptStatus).label}`,
+    `催办阶段：${getFailureAutoRemindTag(row.autoRemindStage).label}`,
+    `SLA：${getFailureSlaTag(row.slaStatus).label}`,
+    `签收：${formatAssignmentAckStatus(row)}`,
+    `通知：${formatFailureNotification(row)}`,
+    `投递链：${formatFailureDeliveryContext(row)}`,
+    `诊断：${formatFailureDeliveryDiagnosis(row)}`,
+    `签收 SLA：${formatFailureClaimDeadline(row)}`,
+    `催办：${formatFailureReminder(row)}`,
+    `升级目标：${row.escalationRoleName || row.escalationRoleCode || '未设置升级目标'}`,
+  ].join('\n')
+}
+
+function formatFailureHandlingTitle(row: AdminAiResumeFailureItem) {
+  return [
+    `处理人：${row.handledByAdminName || '--'}`,
+    `处理时间：${row.handledAt ? formatDateTime(row.handledAt) : '待处理'}`,
+    `处置记录：${row.handlingNotes?.length || 0} 条`,
+    `最近备注：${row.handlingNote || '--'}`,
+  ].join('\n')
 }
 
 function formatFailureReminderValue(row?: AdminAiResumeFailureItem | null) {
@@ -1756,6 +1995,10 @@ async function loadCollaborationCatalog() {
 }
 
 async function loadAuditLogs() {
+  if (!canReadOperationLogs.value) {
+    auditRows.value = []
+    return
+  }
   auditLoading.value = true
   try {
     const result = await fetchAdminOperationLogs({
@@ -1817,6 +2060,10 @@ function openFailureDetail(row: AdminAiResumeFailureItem) {
 }
 
 async function openAuditDetail(id: number) {
+  if (!canReadOperationLogs.value) {
+    ElMessage.warning('当前账号没有操作日志页面权限')
+    return
+  }
   auditDetailVisible.value = true
   auditDetailLoading.value = true
   auditDetail.value = null
@@ -1897,7 +2144,9 @@ async function submitFailureAction() {
     }
     closeFailureActionDialog()
     await loadFailures()
-    await loadAuditLogs()
+    if (canReadOperationLogs.value) {
+      await loadAuditLogs()
+    }
   } finally {
     actionSubmitting.value = false
   }
@@ -1942,6 +2191,10 @@ function resetFailureFilters() {
 }
 
 function resetAuditFilters() {
+  if (!canReadOperationLogs.value) {
+    auditRows.value = []
+    return
+  }
   auditFilters.pageNo = 1
   auditFilters.pageSize = 10
   auditFilters.adminUserId = undefined
@@ -1956,7 +2209,9 @@ onMounted(() => {
   loadOverview()
   loadHistories()
   loadFailures()
-  loadAuditLogs()
+  if (canReadOperationLogs.value) {
+    loadAuditLogs()
+  }
 })
 </script>
 
@@ -1999,11 +2254,16 @@ onMounted(() => {
 }
 
 .board-grid,
-.detail-split,
-.notice-grid {
+.detail-split {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.notice-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .card-head {
@@ -2023,20 +2283,6 @@ onMounted(() => {
   }
 }
 
-.stack-cell {
-  display: grid;
-  gap: 2px;
-
-  strong {
-    font-size: 13px;
-  }
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-}
-
 .stack-cell__head {
   display: flex;
   align-items: center;
@@ -2048,6 +2294,40 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.failure-collaboration-cell {
+  display: grid;
+  gap: 6px;
+}
+
+.failure-collaboration-cell__tags,
+.failure-collaboration-cell__source {
+  gap: 4px 6px;
+}
+
+.failure-collaboration-cell__meta {
+  margin: 0;
+  color: var(--kp-text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.failure-handling-cell {
+  gap: 3px;
+}
+
+.failure-handling-cell__note {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .recent-list {
@@ -2087,44 +2367,72 @@ onMounted(() => {
   align-items: center;
 }
 
+.notice-grid :deep(.governance-failure-table th.el-table__cell),
+.notice-grid :deep(.governance-sensitive-table th.el-table__cell) {
+  padding: 10px 0;
+  font-size: 11px;
+}
+
+.notice-grid :deep(.governance-failure-table td.el-table__cell),
+.notice-grid :deep(.governance-sensitive-table td.el-table__cell) {
+  padding: 8px 0;
+}
+
+.notice-grid :deep(.governance-failure-table .cell),
+.notice-grid :deep(.governance-sensitive-table .cell) {
+  line-height: 1.4;
+}
+
+.notice-grid :deep(.governance-failure-table .stack-cell),
+.notice-grid :deep(.governance-sensitive-table .stack-cell) {
+  gap: 3px;
+}
+
+.notice-grid :deep(.governance-failure-table .stack-cell strong),
+.notice-grid :deep(.governance-sensitive-table .stack-cell strong) {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.notice-grid :deep(.governance-failure-table .stack-cell span),
+.notice-grid :deep(.governance-sensitive-table .stack-cell span) {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.notice-grid :deep(.governance-failure-table .tag-cluster),
+.notice-grid :deep(.governance-sensitive-table .tag-cluster) {
+  gap: 4px 6px;
+}
+
+.notice-grid :deep(.governance-failure-table .status-tag),
+.notice-grid :deep(.governance-sensitive-table .status-tag) {
+  min-height: 22px;
+  gap: 5px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.notice-grid :deep(.governance-failure-table .status-tag::before),
+.notice-grid :deep(.governance-sensitive-table .status-tag::before) {
+  width: 5px;
+  height: 5px;
+}
+
+.notice-grid :deep(.governance-failure-table .table-actions),
+.notice-grid :deep(.governance-sensitive-table .table-actions) {
+  gap: 4px 8px;
+}
+
+.notice-grid :deep(.governance-failure-table .table-actions :is(.el-button.is-link, .el-button--link)),
+.notice-grid :deep(.governance-sensitive-table .table-actions :is(.el-button.is-link, .el-button--link)) {
+  min-height: 22px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .audit-filter-form {
   margin-bottom: 16px;
-}
-
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
-}
-
-.detail-layout {
-  display: grid;
-  gap: 16px;
-}
-
-.detail-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.detail-block {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(47, 36, 27, 0.05);
-
-  span {
-    color: var(--kp-text-secondary);
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 14px;
-    line-height: 1.6;
-    word-break: break-all;
-  }
 }
 
 .detail-block--full {
@@ -2223,8 +2531,6 @@ onMounted(() => {
 @media (max-width: 960px) {
   .board-grid,
   .detail-split,
-  .notice-grid,
-  .detail-grid,
   .overview-grid {
     grid-template-columns: 1fr;
   }
