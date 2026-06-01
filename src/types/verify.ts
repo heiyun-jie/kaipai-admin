@@ -26,11 +26,17 @@ export interface VerifyDetail {
   phone?: string
   realName: string
   idCardNoCipher: string
+  idCardNoMasked?: string
   status: number
   rejectReason?: string
   submitTime?: string
   reviewedAt?: string
   actorCertified?: boolean
+  providerCode?: string
+  providerRequestId?: string
+  providerResultCode?: string
+  providerResultMessage?: string
+  providerVerifiedAt?: string
 }
 
 export interface VerifyAuditPayload {

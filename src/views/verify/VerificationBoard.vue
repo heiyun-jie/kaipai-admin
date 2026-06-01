@@ -168,11 +168,19 @@
           </DetailBlock>
           <DetailBlock>
             <span>身份证</span>
-            <strong>{{ maskText(detail.idCardNoCipher) }}</strong>
+            <strong>{{ detail.idCardNoMasked || maskText(detail.idCardNoCipher) }}</strong>
           </DetailBlock>
           <DetailBlock>
             <span>演员认证结果</span>
             <strong>{{ detail.actorCertified ? '已回写' : '未回写' }}</strong>
+          </DetailBlock>
+          <DetailBlock>
+            <span>核验服务</span>
+            <strong>{{ formatProviderCode(detail.providerCode) }}</strong>
+          </DetailBlock>
+          <DetailBlock>
+            <span>服务商结果</span>
+            <strong>{{ formatProviderResult(detail) }}</strong>
           </DetailBlock>
           <DetailBlock>
             <span>提交时间</span>
@@ -181,6 +189,14 @@
           <DetailBlock>
             <span>审核时间</span>
             <strong>{{ formatDateTime(detail.reviewedAt) }}</strong>
+          </DetailBlock>
+          <DetailBlock>
+            <span>服务商核验时间</span>
+            <strong>{{ formatDateTime(detail.providerVerifiedAt) }}</strong>
+          </DetailBlock>
+          <DetailBlock>
+            <span>服务商请求 ID</span>
+            <strong>{{ detail.providerRequestId || '--' }}</strong>
           </DetailBlock>
           <DetailBlock wide>
             <span>拒绝原因</span>
@@ -296,6 +312,18 @@ const dashboardContextSummary = computed(() => {
   }
   return parts.join('；') || getDashboardContextSummary(dashboardContextSource.value)
 })
+
+function formatProviderCode(code?: string): string {
+  if (code === 'tencent') return '腾讯云二要素'
+  if (code === 'manual') return '人工审核'
+  return code || '--'
+}
+
+function formatProviderResult(target: VerifyDetail): string {
+  const code = target.providerResultCode || '--'
+  const message = target.providerResultMessage || ''
+  return message ? `${code} / ${message}` : code
+}
 
 function applyRouteFilters() {
   const userId = readRouteQueryString(route.query.userId)
