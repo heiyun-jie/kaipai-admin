@@ -306,3 +306,39 @@ export interface AdminAiImageProviderTestResult {
   imageUrl?: string | null
   elapsedMs?: number | null
 }
+
+export interface ProfileImportConfig {
+  enabled: boolean
+  available: boolean
+  endpoint?: string | null
+  modelName?: string | null
+  connectTimeoutMs?: number | null
+  readTimeoutMs?: number | null
+  maxInputChars?: number | null
+  maxOutputTokens?: number | null
+  perUserDailyLimit?: number | null
+  secretMask?: string | null
+  lastTestStatus?: string | null
+  lastTestMessage?: string | null
+  lastTestAt?: string | null
+}
+
+export interface ProfileImportConfigPayload {
+  endpoint: string
+  modelName: string
+  connectTimeoutMs: number
+  readTimeoutMs: number
+  maxInputChars: number
+  maxOutputTokens: number
+  perUserDailyLimit: number
+}
+
+export interface ProfileImportConfigAudit {
+  auditId: number
+  actionCode: string
+  operatorId?: number | null
+  operatorName?: string | null
+  resultStatus: string
+  message?: string | null
+  createTime?: string | null
+}

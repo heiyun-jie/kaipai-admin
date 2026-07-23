@@ -8,6 +8,7 @@
     "build": "vue-tsc --noEmit && vite build && node scripts/sanitize-dist.mjs",
     "e2e:ai-image-providers": "node scripts/e2e-ai-image-providers.mjs",
     "e2e:ai-image-providers:real": "node scripts/e2e-ai-image-providers-real.mjs",
+    "e2e:ai-profile-import-config": "node scripts/e2e-ai-profile-import-config.mjs",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit"
   },

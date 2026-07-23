@@ -130,6 +130,14 @@
             </div>
             <div class="settings-item__value">{{ canReadAiImageProviders ? '进入页面' : '待授权' }}</div>
           </button>
+
+          <button v-if="canReadAiProfileImport" type="button" class="settings-item" @click="openRoute('/system/ai-profile-import')">
+            <div class="settings-item__copy">
+              <strong>DeepSeek 资料导入</strong>
+              <span>结构化识别、密钥与调用门禁</span>
+            </div>
+            <div class="settings-item__value">进入页面</div>
+          </button>
         </div>
       </el-card>
     </section>
@@ -161,6 +169,7 @@ const canReadRoles = computed(() => permissionStore.hasPage(PERMISSIONS.page.sys
 const canReadOperationLogs = computed(() => permissionStore.hasPage(PERMISSIONS.page.systemOperationLogs))
 const canReadAiGovernance = computed(() => permissionStore.hasPage(PERMISSIONS.page.systemAiResumeGovernance))
 const canReadAiImageProviders = computed(() => permissionStore.hasPage(PERMISSIONS.page.systemAiImageProviders))
+const canReadAiProfileImport = computed(() => permissionStore.hasPage(PERMISSIONS.page.systemAiProfileImport))
 const canOpenAiImageProviderEntry = computed(() => canReadAiImageProviders.value || canReadRoles.value)
 
 const overview = reactive<DashboardOverview>({

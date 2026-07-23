@@ -279,6 +279,17 @@ const routes = [
         },
       },
       {
+        path: 'system/ai-profile-import',
+        name: 'system-ai-profile-import',
+        component: () => import('@/views/system/AiProfileImportConfigView.vue'),
+        meta: {
+          title: 'DeepSeek 资料导入配置',
+          pagePermission: 'page.system.ai-profile-import',
+          architectureLayer: 'tooling',
+          architectureArea: 'tooling',
+        },
+      },
+      {
         path: 'system/admin-users',
         name: 'system-admin-users',
         component: () => import('@/views/system/AdminUsersView.vue'),
@@ -327,6 +338,7 @@ const routes = [
             'page.system.operation-logs',
             'page.system.ai-resume-governance',
             'page.system.ai-image-providers',
+            'page.system.ai-profile-import',
           ],
           architectureLayer: 'mainline',
           architectureArea: 'operate',

@@ -16,6 +16,9 @@ import type {
   AdminAiImageProviderSecretSavePayload,
   AdminAiImageProviderTestPayload,
   AdminAiImageProviderTestResult,
+  ProfileImportConfig,
+  ProfileImportConfigAudit,
+  ProfileImportConfigPayload,
 } from '@/types/ai'
 
 export function fetchAdminAiResumeOverview() {
@@ -134,4 +137,28 @@ export function testAdminAiImageProvider(providerCode: string, payload: AdminAiI
   return request
     .post(`/admin/ai/image-providers/${providerCode}/test`, payload, { timeout: 180000 })
     .then((data) => data as unknown as AdminAiImageProviderTestResult)
+}
+
+export function fetchProfileImportConfig() {
+  return request.get('/admin/ai/profile-import/config').then((data) => data as unknown as ProfileImportConfig)
+}
+
+export function saveProfileImportConfig(payload: ProfileImportConfigPayload) {
+  return request.put('/admin/ai/profile-import/config', payload).then((data) => data as unknown as ProfileImportConfig)
+}
+
+export function saveProfileImportSecret(apiKey: string) {
+  return request.put('/admin/ai/profile-import/secret', { apiKey }).then((data) => data as unknown as ProfileImportConfig)
+}
+
+export function testProfileImportConnection() {
+  return request.post('/admin/ai/profile-import/test', {}, { timeout: 90000 }).then((data) => data as unknown as ProfileImportConfig)
+}
+
+export function setProfileImportEnabled(value: boolean) {
+  return request.put('/admin/ai/profile-import/enabled', undefined, { params: { value } }).then((data) => data as unknown as ProfileImportConfig)
+}
+
+export function fetchProfileImportAudits() {
+  return request.get('/admin/ai/profile-import/audits').then((data) => data as unknown as ProfileImportConfigAudit[])
 }
