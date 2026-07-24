@@ -118,7 +118,21 @@ function applyConfig(value: ProfileImportConfig) {
 async function load() { loading.value = true; try { applyConfig(await fetchProfileImportConfig()); audits.value = canAudit.value ? await fetchProfileImportAudits() : [] } catch { ElMessage.error('配置加载失败') } finally { loading.value = false } }
 async function saveConfig() { saving.value = true; try { applyConfig(await saveProfileImportConfig({ ...form })); ElMessage.success('配置已保存') } catch { ElMessage.error('配置保存失败') } finally { saving.value = false } }
 async function saveSecret() { savingSecret.value = true; try { applyConfig(await saveProfileImportSecret(secret.value)); secret.value = ''; ElMessage.success('密钥已更新') } catch { ElMessage.error('密钥更新失败') } finally { savingSecret.value = false } }
-async function testConnection() { testing.value = true; try { applyConfig(await testProfileImportConnection()); ElMessage.success(config.lastTestStatus === 'success' ? '连接成功' : '连接失败') } catch { ElMessage.error('连接测试失败') } finally { testing.value = false } }
+async function testConnection() {
+  testing.value = true
+  try {
+    applyConfig(await testProfileImportConnection())
+    if (config.lastTestStatus === 'success') {
+      ElMessage.success('连接成功')
+    } else {
+      ElMessage.error('连接失败')
+    }
+  } catch {
+    ElMessage.error('连接测试失败')
+  } finally {
+    testing.value = false
+  }
+}
 async function toggleEnabled(value: string | number | boolean) { toggling.value = true; try { applyConfig(await setProfileImportEnabled(Boolean(value))); ElMessage.success(value ? '已启用' : '已停用') } catch { ElMessage.error('状态更新失败') } finally { toggling.value = false } }
 onMounted(load)
 </script>
