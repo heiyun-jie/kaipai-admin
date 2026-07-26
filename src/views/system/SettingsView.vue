@@ -134,7 +134,7 @@
           <button v-if="canReadAiProfileImport" type="button" class="settings-item" @click="openRoute('/system/ai-profile-import')">
             <div class="settings-item__copy">
               <strong>DeepSeek 资料导入</strong>
-              <span>结构化识别、密钥与调用门禁</span>
+              <span>模型、密钥与 Prompt 版本治理</span>
             </div>
             <div class="settings-item__value">进入页面</div>
           </button>

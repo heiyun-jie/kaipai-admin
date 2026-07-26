@@ -19,7 +19,18 @@ import type {
   ProfileImportConfig,
   ProfileImportConfigAudit,
   ProfileImportConfigPayload,
+  ProfileImportPromptAudit,
+  ProfileImportPromptCreateDraftPayload,
+  ProfileImportPromptRestorePayload,
+  ProfileImportPromptTemplateSummary,
+  ProfileImportPromptTestResult,
+  ProfileImportPromptUpdateDraftPayload,
+  ProfileImportPromptVersionActionPayload,
+  ProfileImportPromptVersionDetail,
+  ProfileImportPromptVersionSummary,
 } from '@/types/ai'
+
+const promptRequestOptions = { suppressBusinessErrorToast: true } as const
 
 export function fetchAdminAiResumeOverview() {
   return request.get('/admin/ai/resume/overview').then((data) => data as unknown as AdminAiResumeOverview)
@@ -161,4 +172,44 @@ export function setProfileImportEnabled(value: boolean) {
 
 export function fetchProfileImportAudits() {
   return request.get('/admin/ai/profile-import/audits').then((data) => data as unknown as ProfileImportConfigAudit[])
+}
+
+export function fetchProfileImportPromptTemplates() {
+  return request.get('/admin/ai/profile-import/prompt-templates', promptRequestOptions).then((data) => data as unknown as ProfileImportPromptTemplateSummary[])
+}
+
+export function fetchProfileImportPromptVersions(templateCode: string) {
+  return request.get(`/admin/ai/profile-import/prompt-templates/${templateCode}/versions`, promptRequestOptions).then((data) => data as unknown as ProfileImportPromptVersionSummary[])
+}
+
+export function fetchProfileImportPromptVersion(versionId: number) {
+  return request.get(`/admin/ai/profile-import/prompt-templates/versions/${versionId}`, promptRequestOptions).then((data) => data as unknown as ProfileImportPromptVersionDetail)
+}
+
+export function createProfileImportPromptDraft(templateCode: string, payload: ProfileImportPromptCreateDraftPayload) {
+  return request.post(`/admin/ai/profile-import/prompt-templates/${templateCode}/drafts`, payload, promptRequestOptions).then((data) => data as unknown as ProfileImportPromptTemplateSummary)
+}
+
+export function updateProfileImportPromptDraft(versionId: number, payload: ProfileImportPromptUpdateDraftPayload) {
+  return request.put(`/admin/ai/profile-import/prompt-templates/versions/${versionId}`, payload, promptRequestOptions).then((data) => data as unknown as ProfileImportPromptVersionDetail)
+}
+
+export function abandonProfileImportPromptDraft(versionId: number, payload: ProfileImportPromptVersionActionPayload) {
+  return request.post(`/admin/ai/profile-import/prompt-templates/versions/${versionId}/abandon`, payload, promptRequestOptions).then((data) => data as unknown as ProfileImportPromptTemplateSummary)
+}
+
+export function testProfileImportPromptVersion(versionId: number) {
+  return request.post(`/admin/ai/profile-import/prompt-templates/versions/${versionId}/test`, undefined, { ...promptRequestOptions, timeout: 180000 }).then((data) => data as unknown as ProfileImportPromptTestResult)
+}
+
+export function publishProfileImportPromptVersion(versionId: number, payload: ProfileImportPromptVersionActionPayload) {
+  return request.post(`/admin/ai/profile-import/prompt-templates/versions/${versionId}/publish`, payload, promptRequestOptions).then((data) => data as unknown as ProfileImportPromptTemplateSummary)
+}
+
+export function restoreProfileImportPromptTemplate(templateCode: string, versionId: number, payload: ProfileImportPromptRestorePayload) {
+  return request.post(`/admin/ai/profile-import/prompt-templates/${templateCode}/versions/${versionId}/restore`, payload, promptRequestOptions).then((data) => data as unknown as ProfileImportPromptTemplateSummary)
+}
+
+export function fetchProfileImportPromptAudits() {
+  return request.get('/admin/ai/profile-import/prompt-templates/audits', promptRequestOptions).then((data) => data as unknown as ProfileImportPromptAudit[])
 }

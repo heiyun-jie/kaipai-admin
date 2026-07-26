@@ -342,3 +342,129 @@ export interface ProfileImportConfigAudit {
   message?: string | null
   createTime?: string | null
 }
+
+export type ProfileImportPromptScene = 'full_profile' | 'works_only'
+export type ProfileImportPromptLifecycle = 'draft' | 'released' | 'abandoned'
+export type ProfileImportPromptTestStatus = 'untested' | 'success' | 'failed' | 'stale'
+export type ProfileImportPromptReasonCode =
+  | 'INITIAL_RELEASE'
+  | 'QUALITY_ADJUSTMENT'
+  | 'CONFIG_ALIGNMENT'
+  | 'QUALITY_REGRESSION'
+  | 'INCIDENT_ROLLBACK'
+  | 'DRAFT_SUPERSEDED'
+  | 'DRAFT_INVALID'
+
+export interface ProfileImportPromptTemplateSummary {
+  templateId: number
+  templateCode: string
+  scene: ProfileImportPromptScene
+  displayName: string
+  activeVersionId?: number | null
+  activeVersionNo?: number | null
+  activeVersionLabel?: string | null
+  activeContentSha256?: string | null
+  draftVersionId?: number | null
+  draftVersionNo?: number | null
+  draftVersionLabel?: string | null
+  draftTestStatus?: ProfileImportPromptTestStatus | null
+  version: number
+}
+
+export interface ProfileImportPromptVersionSummary {
+  promptVersionId: number
+  versionNo: number
+  versionLabel: string
+  lifecycleStatus: ProfileImportPromptLifecycle
+  contentSha256: string
+  testStatus: ProfileImportPromptTestStatus
+  testedModelName?: string | null
+  testErrorCode?: string | null
+  testCandidateCount: number
+  testWorkCount: number
+  testElapsedMs?: number | null
+  testedBy?: number | null
+  testedAt?: string | null
+  releasedBy?: number | null
+  releasedAt?: string | null
+  updateUserName?: string | null
+  lastUpdate?: string | null
+  version: number
+}
+
+export interface ProfileImportPromptVersionDetail extends ProfileImportPromptVersionSummary {
+  systemPromptBody: string
+  repairPromptBody: string
+  schemaVersion: string
+  contractVersion: string
+  changeSummary?: string | null
+}
+
+export interface ProfileImportPromptTestResult {
+  promptVersionId: number
+  contentSha256: string
+  runtimeSha256: string
+  fixtureCode: string
+  fixtureVersion: string
+  fixtureSha256: string
+  modelName: string
+  configVersion: number
+  status: 'success' | 'failed'
+  candidateCount: number
+  workCount: number
+  elapsedMs: number
+  errorCode?: string | null
+  testedBy: number
+  testedAt: string
+}
+
+export interface ProfileImportPromptAudit {
+  promptAuditId: number
+  templateId: number
+  promptVersionId?: number | null
+  actionCode: string
+  fromVersionId?: number | null
+  toVersionId?: number | null
+  contentSha256?: string | null
+  runtimeSha256?: string | null
+  schemaVersion?: string | null
+  contractVersion?: string | null
+  fixtureCode?: string | null
+  fixtureVersion?: string | null
+  fixtureSha256?: string | null
+  modelName?: string | null
+  configVersion?: number | null
+  testOperatorId?: number | null
+  testedAt?: string | null
+  operatorId: number
+  operatorName?: string | null
+  reasonCode: string
+  resultStatus: string
+  errorCode?: string | null
+  message?: string | null
+  createTime?: string | null
+}
+
+export interface ProfileImportPromptCreateDraftPayload {
+  sourceVersionId?: number | null
+  expectedTemplateVersion: number
+}
+
+export interface ProfileImportPromptUpdateDraftPayload {
+  versionLabel: string
+  systemPromptBody: string
+  repairPromptBody: string
+  changeSummary?: string | null
+  expectedVersion: number
+}
+
+export interface ProfileImportPromptVersionActionPayload {
+  reasonCode: ProfileImportPromptReasonCode
+  expectedTemplateVersion: number
+  expectedVersion: number
+}
+
+export interface ProfileImportPromptRestorePayload {
+  reasonCode: ProfileImportPromptReasonCode
+  expectedTemplateVersion: number
+}

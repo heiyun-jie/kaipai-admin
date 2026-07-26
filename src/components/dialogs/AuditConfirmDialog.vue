@@ -18,6 +18,7 @@ const props = withDefaults(
     dialogClass?: string
     width?: string
     meta?: Array<{ label: string; value?: string | number | null }>
+    reasonOptions?: Array<{ label: string; value: string }>
   }>(),
   {
     requireReason: false,
@@ -28,6 +29,7 @@ const props = withDefaults(
     dialogClass: '',
     width: '520px',
     meta: () => [],
+    reasonOptions: () => [],
   },
 )
 
@@ -54,10 +56,16 @@ watch(
 )
 
 function close() {
+  if (props.loading) {
+    return
+  }
   emit('update:modelValue', false)
 }
 
 function submit() {
+  if (props.loading) {
+    return
+  }
   if (finalRequireReason.value && !state.reason.trim()) {
     return
   }
@@ -67,7 +75,16 @@ function submit() {
 </script>
 
 <template>
-  <el-dialog :model-value="modelValue" :title="title" :width="width" class="audit-confirm-dialog" @close="close">
+  <el-dialog
+    :model-value="modelValue"
+    :title="title"
+    :width="width"
+    class="audit-confirm-dialog"
+    :close-on-click-modal="!loading"
+    :close-on-press-escape="!loading"
+    :show-close="!loading"
+    @close="close"
+  >
     <div class="dialog-content">
       <section class="dialog-intro">
         <p class="dialog-intro__eyebrow">ACTION / 操作确认</p>
@@ -83,19 +100,35 @@ function submit() {
       </ul>
       <p v-if="impactHint" class="dialog-summary">{{ impactHint }}</p>
       <slot name="extra" />
+      <el-select
+        v-if="reasonOptions.length"
+        v-model="state.reason"
+        :placeholder="placeholder"
+        :disabled="loading"
+        class="dialog-reason-select"
+      >
+        <el-option
+          v-for="option in reasonOptions"
+          :key="option.value"
+          :label="option.label"
+          :value="option.value"
+        />
+      </el-select>
       <el-input
+        v-else
         v-model="state.reason"
         type="textarea"
         :rows="4"
         :placeholder="placeholder"
+        :disabled="loading"
       />
       <span v-if="finalRequireReason" class="dialog-tip">{{ reasonLabel }}为必填。</span>
       <span v-else-if="actionCode" class="dialog-tip">权限码：{{ actionCode }}</span>
     </div>
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="close">取消</el-button>
-        <el-button type="primary" :loading="loading" @click="submit">{{ confirmText }}</el-button>
+        <el-button :disabled="loading" @click="close">取消</el-button>
+        <el-button type="primary" :loading="loading" :disabled="loading" @click="submit">{{ confirmText }}</el-button>
       </div>
     </template>
   </el-dialog>
@@ -143,7 +176,23 @@ function submit() {
 
 .dialog-footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.dialog-reason-select {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .dialog-meta li,
+  .dialog-footer {
+    flex-wrap: wrap;
+  }
+
+  .dialog-footer {
+    gap: 8px;
+  }
 }
 </style>

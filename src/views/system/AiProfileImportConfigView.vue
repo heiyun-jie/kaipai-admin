@@ -1,7 +1,7 @@
 <template>
   <PageContainer>
     <template #actions>
-      <el-button :loading="loading" @click="load">刷新</el-button>
+      <el-button data-action="refresh-config-audit" :loading="loading" @click="load">刷新</el-button>
       <el-button v-if="canUpdate" type="primary" :loading="saving" @click="saveConfig">保存配置</el-button>
     </template>
 
@@ -74,8 +74,10 @@
       </el-card>
     </div>
 
+    <ProfileImportPromptTemplatePanel />
+
     <el-card v-if="canAudit" class="config-card" shadow="never">
-      <div class="section-heading"><div><h3>配置审计</h3><p>最近 50 条</p></div></div>
+      <div class="section-heading"><div><h3>模型配置审计</h3><p>最近 50 条</p></div></div>
       <el-table :data="audits" empty-text="暂无审计记录">
         <el-table-column prop="actionCode" label="动作" min-width="170" />
         <el-table-column prop="resultStatus" label="结果" width="110" />
@@ -91,6 +93,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import PageContainer from '@/components/business/PageContainer.vue'
+import ProfileImportPromptTemplatePanel from '@/components/business/ProfileImportPromptTemplatePanel.vue'
 import { PERMISSIONS } from '@/constants/permission'
 import { usePermissionStore } from '@/stores/permission'
 import { fetchProfileImportAudits, fetchProfileImportConfig, saveProfileImportConfig, saveProfileImportSecret, setProfileImportEnabled, testProfileImportConnection } from '@/api/ai'

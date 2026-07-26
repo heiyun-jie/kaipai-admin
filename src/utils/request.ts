@@ -1,7 +1,13 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import type { ApiResponse } from '@/types/common'
+import type { ApiBusinessErrorShape, ApiResponse } from '@/types/common'
 import { clearStoredSession, clearStoredToken, getStoredToken } from './storage'
+
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    suppressBusinessErrorToast?: boolean
+  }
+}
 
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -9,6 +15,22 @@ const request = axios.create({
 })
 
 let authExpiredHandler: (() => void) | null = null
+
+export class ApiBusinessError extends Error {
+  readonly code: number
+  readonly errorCode: string | null
+
+  constructor(payload: ApiBusinessErrorShape) {
+    super(payload.message || '请求失败')
+    this.name = 'ApiBusinessError'
+    this.code = payload.code
+    this.errorCode = payload.errorCode || null
+  }
+}
+
+export function isApiBusinessError(error: unknown): error is ApiBusinessError {
+  return error instanceof ApiBusinessError
+}
 
 function isNullLikeString(value: unknown) {
   return typeof value === 'string' && ['undefined', 'null', ''].includes(value.trim().toLowerCase())
@@ -57,8 +79,10 @@ request.interceptors.response.use(
         clearStoredSession()
         authExpiredHandler?.()
       }
-      ElMessage.error(payload.message || '请求失败')
-      return Promise.reject(new Error(payload.message || 'Request failed'))
+      if (!response.config.suppressBusinessErrorToast || payload.code === 401 || payload.code === 403) {
+        ElMessage.error(payload.message || '请求失败')
+      }
+      return Promise.reject(new ApiBusinessError(payload))
     }
     return payload.data
   },
