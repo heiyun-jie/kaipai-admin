@@ -25,7 +25,6 @@ export interface VerifyDetail {
   userName?: string
   phone?: string
   realName: string
-  idCardNoCipher: string
   idCardNoMasked?: string
   status: number
   rejectReason?: string

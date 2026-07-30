@@ -168,7 +168,7 @@
           </DetailBlock>
           <DetailBlock>
             <span>身份证</span>
-            <strong>{{ detail.idCardNoMasked || maskText(detail.idCardNoCipher) }}</strong>
+            <strong>{{ detail.idCardNoMasked || '--' }}</strong>
           </DetailBlock>
           <DetailBlock>
             <span>演员认证结果</span>
@@ -237,7 +237,7 @@ import {
   readRouteQueryString,
   resolveDashboardRouteSource,
 } from '@/utils/dashboard-context'
-import { formatDateTime, maskText } from '@/utils/format'
+import { formatDateTime } from '@/utils/format'
 import type { VerifyDetail, VerifyListItem, VerifyQuery } from '@/types/verify'
 import AdminPager from '@/components/business/AdminPager.vue'
 import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
