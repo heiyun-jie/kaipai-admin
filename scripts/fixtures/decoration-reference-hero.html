@@ -1,0 +1,26 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>B12 参考首图 · 仅示例数据</title></head><body style="margin:0"><div id="app"></div><script type="module">
+import { createApp, h, reactive, computed, ref } from 'vue'
+import Renderer from '/src/generated/actor-card-decoration/ActorCardDecorationWeb.vue'
+import { resolveActorCardDecoration } from '/src/generated/actor-card-decoration/actor-card-decoration-schema.ts'
+import * as presets from '/src/utils/actor-card-decoration.ts'
+import { previewModel } from '/src/utils/actor-card-preview-model.ts'
+import Preview from '/src/components/business/ActorCardDecorationPreview.vue'
+const initial = {schemaVersion:1, hero:{height:1334}, modules:[
+ {id:'identity',type:'identity',layout:{zone:'hero',x:40,y:884,width:670,height:300}},
+ {id:'highlights',type:'highlights',order:10,layout:{zone:'hero',x:40,y:1199,width:670,height:125}},
+ ...['profile','introduction','works','photos','stills','video','pdf','cooperation'].map((type,i)=>({id:type,type,order:20+i*10}))
+]}
+// Fallback deliberately leaves old renderer visible for a meaningful pre-implementation RED.
+const config = reactive(presets.applyReferenceProfileHeroPreset ? presets.applyReferenceProfileHeroPreset(initial) : initial)
+const identity=config.modules.find(m=>m.type==='identity' && m.layout?.zone==='hero')
+if(identity?.identityOptions) identity.identityOptions.eyebrow='ACTRESS PROFILE'
+const model=reactive(previewModel({id:0,profile:{name:'关知雨',height:'165',weight:'41',heroBadgeText:'全网粉丝 10w+ · 可配合剧宣',skills:['表演'],introduction:'仅用于复核用户提供的参考排版，不是平台默认演员事实。'},settings:{showContact:false,showVideo:true,showAttachment:true}},'https://decoration.invalid/reference-hero.png'))
+const decoration=computed(()=>resolveActorCardDecoration({versionId:1,templateId:1,templateVersion:1,schemaVersion:config.schemaVersion,config}))
+// Fixture-only state controls, no auth/backend/AI calls.
+const editorPreview=ref(false)
+window.referenceFixture={model,config,setBadge(value){model.profile.heroBadgeText=value},setWeight(value){model.profile.weight=value},enablePreview(){editorPreview.value=true}}
+createApp({render:()=>h('div',{style:'width:417px;overflow:hidden'},[
+ h('div',{style:'font:12px sans-serif;padding:8px;background:#fff;color:#334155'},'参考排版测试 · 姓名与粉丝数字仅复现来图示例，非默认值'),
+ editorPreview.value ? h(Preview,{config,card:model}) : h('div',{id:'scaled',style:'width:750px;transform:scale(0.556);transform-origin:top left'},decoration.value ? h(Renderer,{model,decoration:decoration.value}) : h('p','配置未支持'))
+])}).mount('#app')
+</script></body></html>

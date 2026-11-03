@@ -1,0 +1,11 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>同源渲染器浏览器尺寸回归</title></head><body style="margin:0"><div id="app"></div><script type="module">
+import { createApp, h } from 'vue'
+import Renderer from '/src/generated/actor-card-decoration/ActorCardDecorationWeb.vue'
+import { resolveActorCardDecoration } from '/src/generated/actor-card-decoration/actor-card-decoration-schema.ts'
+import { previewModel } from '/src/utils/actor-card-preview-model.ts'
+const image='https://decoration.invalid/image.png'
+const model=previewModel({id:1,profile:{name:'浏览器回归',city:'北京',height:'180',skills:['舞蹈'],introduction:'完整简介',contact:'13800138000'},works:[{id:1,title:'作品标题',role:'角色',stills:[image]}],photos:[image,image],video:{url:'https://decoration.invalid/video.mp4'},attachment:{filename:'回归.pdf',pageImages:[image]},settings:{showContact:true,showVideo:true,showAttachment:true}},image)
+const config={schemaVersion:1,defaults:{radius:32},modules:['identity','profile','highlights','introduction','works','photos','stills','video','pdf','cooperation'].map((type,i)=>({id:type,type,order:i}))}
+const decoration=resolveActorCardDecoration({versionId:1,templateId:1,templateVersion:1,schemaVersion:1,config})
+createApp({render:()=>h(Renderer,{model,decoration})}).mount('#app')
+</script></body></html>

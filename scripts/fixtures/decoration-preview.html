@@ -1,0 +1,13 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>装修工作台 · 本地隔离示例核验</title></head><body><div id="app"></div><script type="module">
+import { createApp, ref, h } from 'vue'
+import { createPinia } from 'pinia'
+import ElementPlus from 'element-plus'
+import 'element-plus/dist/index.css'
+import '/src/styles/index.scss'
+import { useAuthStore } from '/src/stores/auth.ts'
+import ActorCardDecorationEditor from '/src/components/business/ActorCardDecorationEditor.vue'
+const app = createApp({ setup() { const visible = ref(true); return () => h('div', { style: 'padding:24px' }, [h('h1', '本地隔离 UI 核验 · 仅示例资料与内存存储'), h('p', '不访问真实后台，不写真实配置；关闭服务即清空。'), h('button', { onClick: () => visible.value = true }, '打开装修工作台'), visible.value ? h(ActorCardDecorationEditor, { templateId: 7, templateName: '示例模板（本地隔离核验）', onClose: () => visible.value = false }) : null]) } })
+const pinia = createPinia(); app.use(pinia); app.use(ElementPlus)
+useAuthStore(pinia).session = { adminUserId: 1, account: 'local-fixture', userName: '本地示例', roleCodes: [], menuPermissions: [], pagePermissions: ['page.content.templates'], actionPermissions: ['action.content.template.edit', 'action.content.template.publish', 'action.content.template.rollback'] }
+app.mount('#app')
+</script></body></html>

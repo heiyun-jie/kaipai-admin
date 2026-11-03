@@ -560,6 +560,20 @@ const providerOptions: ProviderOption[] = [
     },
   },
   {
+    code: 'tencent-tokenhub',
+    label: '腾讯 TokenHub Hy-Image 3.5',
+    priority: 55,
+    secretFields: ['apiKey'],
+    requiredPublicFields: ['endpoint', 'model'],
+    publicConfig: {
+      endpoint: 'https://tokenhub.tencentmaas.com/v1/wand/hunyuan-image/v35-generation',
+      model: 'hy-image-v3.5-preview',
+      count: 1,
+      connectTimeoutMs: 10000,
+      readTimeoutMs: 240000,
+    },
+  },
+  {
     code: 'http',
     label: '通用 HTTP 厂商',
     priority: 90,
@@ -1004,6 +1018,7 @@ function secretFieldsForCode(providerCode: string) {
     'aliyun-qwen-image': ['apiKey'],
     'aliyun-wanxiang': ['apiKey'],
     'tencent-hunyuan': ['secretId', 'secretKey'],
+    'tencent-tokenhub': ['apiKey'],
     'baidu-qianfan': ['apiKey'],
   }
   return defaults[providerCode] || []
@@ -1016,6 +1031,7 @@ function requiredPublicFieldsForCode(providerCode: string) {
   }
   const defaults: Record<string, string[]> = {
     'tencent-hunyuan': ['endpoint', 'region', 'model'],
+    'tencent-tokenhub': ['endpoint', 'model'],
     kplyyk: ['endpoint', 'model'],
     http: ['endpoint', 'model'],
     openai: ['endpoint', 'model'],
@@ -1089,6 +1105,10 @@ function publicPlaceholder(field: string, providerCode = currentProvider.value?.
       modelVersion: '2022-12-29',
       resolution: '720:1280',
       size: '720:1280',
+    },
+    'tencent-tokenhub': {
+      endpoint: 'https://tokenhub.tencentmaas.com/v1/wand/hunyuan-image/v35-generation',
+      model: 'hy-image-v3.5-preview',
     },
     'baidu-qianfan': {
       endpoint: 'https://qianfan.baidubce.com/v2/images/generations',

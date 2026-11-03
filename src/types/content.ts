@@ -300,6 +300,45 @@ export type ThemeTokenPageResult = PageResult<ThemeTokenItem>
 export type ShareArtifactPageResult = PageResult<ShareArtifactItem>
 export type ContentContactRequestPageResult = PageResult<ContentContactRequestItem>
 export type ContentShareCardGovernancePageResult = PageResult<ContentShareCardGovernanceItem>
+
+/** 00-265: v2 演员卡（actor_card）治理列表，与 1.0 分享卡是两套数据。 */
+export type ContentActorCardStatus = 'published' | 'draft'
+
+export interface ContentActorCardGovernanceQuery {
+  pageNo: number
+  pageSize: number
+  cardId?: number
+  userId?: number
+  status?: '' | ContentActorCardStatus
+  style?: string
+}
+
+export interface ContentActorCardGovernanceItem {
+  cardId: number
+  userId?: number | null
+  ownerName?: string | null
+  ownerPhone?: string | null
+  status?: string | null
+  title?: string | null
+  style?: string | null
+  currentStep?: number | null
+  completionPercentage?: number | null
+  coverImageUrl?: string | null
+  publishedVersion?: number | null
+  publishedAt?: string | null
+  createTime?: string | null
+  lastUpdate?: string | null
+}
+
+export interface ContentActorCardStatusCounts {
+  total: number
+  published: number
+  draft: number
+}
+
+export interface ContentActorCardGovernancePageResult extends PageResult<ContentActorCardGovernanceItem> {
+  statusCounts: ContentActorCardStatusCounts
+}
 export type TemplateQuery = TemplateListQuery
 export type CreateTemplatePayload = TemplateCreatePayload
 export type UpdateTemplatePayload = TemplateUpdatePayload

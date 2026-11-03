@@ -15,6 +15,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'edit', row: TemplateItem): void
+  (event: 'decoration', row: TemplateItem): void
   (event: 'toggleStatus', row: TemplateItem): void
   (event: 'sort', row: TemplateItem): void
   (event: 'publish', row: TemplateItem): void
@@ -48,6 +49,7 @@ const emit = defineEmits<{
       </div>
 
       <div class="template-card__actions">
+        <PermissionButton link type="primary" action="page.content.templates" @click="emit('decoration', row)">页面装修</PermissionButton>
         <PermissionButton link type="primary" action="action.content.template.edit" @click="emit('edit', row)">基础编辑</PermissionButton>
         <PermissionButton
           link

@@ -1,5 +1,7 @@
 import request from '@/utils/request'
 import type {
+  ContentActorCardGovernancePageResult,
+  ContentActorCardGovernanceQuery,
   ContentContactRequestDetail,
   ContentContactRequestPageResult,
   ContentContactRequestQuery,
@@ -99,6 +101,10 @@ export function rejectContentContactRequest(id: number, payload: ContactRequestD
 
 export function fetchContentShareCards(params: ContentShareCardGovernanceQuery) {
   return request.get('/admin/content/share-cards', { params }).then((data) => data as unknown as ContentShareCardGovernancePageResult)
+}
+
+export function fetchContentActorCards(params: ContentActorCardGovernanceQuery) {
+  return request.get('/admin/content/actor-cards', { params }).then((data) => data as unknown as ContentActorCardGovernancePageResult)
 }
 
 export function fetchContentShareCardDetail(shareCardId: number) {

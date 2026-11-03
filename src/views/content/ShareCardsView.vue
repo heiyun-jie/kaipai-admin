@@ -1,5 +1,22 @@
 <template>
   <PageContainer>
+    <div class="content-source-switch" role="tablist" aria-label="分享内容数据源">
+      <button
+        v-for="source in sourceOptions"
+        :key="source.key"
+        type="button"
+        class="content-tab"
+        :data-active="contentSource === source.key"
+        @click="switchSource(source.key)"
+      >
+        <span>{{ source.label }}</span>
+        <small>{{ source.hint }}</small>
+      </button>
+    </div>
+
+    <ActorCardGovernancePanel v-if="contentSource === 'actor'" />
+
+    <template v-else>
     <el-card class="table-card content-shell-card" shadow="never">
       <div class="content-shell-card__toolbar">
         <div class="content-tabs" role="tablist" aria-label="分享内容视图">
@@ -269,11 +286,12 @@
         </el-card>
       </div>
     </AdminDetailDrawer>
+    </template>
   </PageContainer>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { fetchContentShareCardDetail, fetchContentShareCards } from '@/api/content'
 import DetailGrid from '@/components/business/DetailGrid.vue'
 import FilterPanel from '@/components/business/FilterPanel.vue'
@@ -290,7 +308,9 @@ import { formatDateTime, maskPhone } from '@/utils/format'
 import { resolveShareCardSceneDisplayLabel } from '@/utils/shareCard'
 import AdminPager from '@/components/business/AdminPager.vue'
 import AdminDetailDrawer from '@/components/business/AdminDetailDrawer.vue'
+import ActorCardGovernancePanel from './ActorCardGovernancePanel.vue'
 
+type ContentSourceKey = 'actor' | 'share'
 type ContentSegmentKey = 'all' | 'active' | 'default' | 'archived'
 type ViewMode = 'gallery' | 'table'
 type StatusTone = 'info' | 'warning' | 'success' | 'danger'
@@ -303,6 +323,13 @@ const detailVisible = ref(false)
 const detail = ref<ContentShareCardGovernanceDetail | null>(null)
 const activeSegment = ref<ContentSegmentKey>('all')
 const viewMode = ref<ViewMode>('gallery')
+// 00-265: 默认展示 v2 演员卡（与小程序名片夹同源）；1.0 分享卡首次切换时才加载
+const contentSource = ref<ContentSourceKey>('actor')
+const shareLoaded = ref(false)
+const sourceOptions = [
+  { key: 'actor' as ContentSourceKey, label: '演员卡（v2）', hint: '小程序名片夹' },
+  { key: 'share' as ContentSourceKey, label: '分享卡（1.0）', hint: '旧版分享卡' },
+]
 
 const filters = reactive<ContentShareCardGovernanceQuery>({
   pageNo: 1,
@@ -496,396 +523,22 @@ function resetFilters() {
   loadList()
 }
 
-onMounted(async () => {
-  await loadList()
-})
+function switchSource(next: ContentSourceKey) {
+  contentSource.value = next
+  if (next === 'share' && !shareLoaded.value) {
+    shareLoaded.value = true
+    loadList()
+  }
+}
 </script>
 
 <style scoped lang="scss">
-:deep(.content-shell-card > .el-card__body) {
-  padding: 18px 20px;
-}
+@use './share-content-shared';
 
-.content-shell-card__toolbar {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.content-tabs {
+.content-source-switch {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.content-tab,
-.content-view-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid rgba(80, 63, 47, 0.12);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.76);
-  color: rgba(47, 36, 27, 0.64);
-  cursor: pointer;
-}
-
-.content-tab span,
-.content-view-button {
-  font-weight: 700;
-}
-
-.content-tab small {
-  color: rgba(47, 36, 27, 0.46);
-}
-
-.content-tab[data-active='true'],
-.content-view-button[data-active='true'] {
-  background: #221f1c;
-  color: #f6efe6;
-  box-shadow: 0 12px 24px rgba(34, 31, 28, 0.14);
-}
-
-.content-tab[data-active='true'] small {
-  color: rgba(246, 239, 230, 0.68);
-}
-
-.content-shell-card__actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.content-shell-card__stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.content-stat {
-  display: grid;
-  gap: 4px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(80, 63, 47, 0.08);
-}
-
-.content-stat span {
-  color: rgba(47, 36, 27, 0.48);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-}
-
-.content-stat strong {
-  font-size: 22px;
-}
-
-.share-filter-panel :deep(.el-card__body) {
-  padding: 20px 20px 18px;
-}
-
-.share-filter-panel :deep(.filter-panel__header) {
-  margin-bottom: 14px;
-  padding-bottom: 12px;
-}
-
-.share-filter-panel :deep(.filter-panel__header h3) {
-  font-size: 15px;
-}
-
-.share-filter-panel :deep(.filter-panel__header p) {
-  margin-top: 4px;
-  font-size: 12px;
-}
-
-.share-filter-panel :deep(.filter-panel__body) {
-  gap: 12px;
-}
-
-.share-filter-panel :deep(.el-form--inline) {
-  gap: 12px 14px;
-}
-
-.share-filter-panel :deep(.el-form--inline .el-form-item) {
-  gap: 10px;
-}
-
-.share-filter-panel :deep(.el-form-item__label) {
-  min-height: 40px;
-  font-size: 11px;
-}
-
-.share-filter-panel :deep(.el-form-item__content) {
-  min-width: 164px;
-}
-
-.share-filter-panel :deep(.el-input__wrapper),
-.share-filter-panel :deep(.el-select__wrapper),
-.share-filter-panel :deep(.el-date-editor.el-input__wrapper) {
-  min-height: 46px;
-  padding: 0 14px;
-  border-radius: 16px;
-}
-
-.share-filter-panel :deep(.filter-panel__actions .el-button) {
-  min-height: 38px;
-  padding-inline: 14px;
-  border-radius: 12px;
-}
-
-.content-gallery-shell {
-  display: grid;
-  gap: 14px;
-}
-
-.content-gallery__loading {
-  padding: 56px 0;
-  text-align: center;
-  color: rgba(47, 36, 27, 0.52);
-}
-
-.content-gallery {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 300px));
-  justify-content: start;
-}
-
-.content-card {
-  display: grid;
-  overflow: hidden;
-  border: 1px solid rgba(80, 63, 47, 0.08);
-  border-radius: 22px;
-  background:
-    linear-gradient(180deg, rgba(255, 252, 247, 0.94), rgba(250, 244, 236, 0.9)),
-    rgba(255, 251, 245, 0.92);
-  box-shadow: 0 16px 34px rgba(63, 42, 20, 0.08);
-}
-
-.content-card__cover {
-  display: grid;
-  align-content: space-between;
-  min-height: 220px;
-  padding: 14px;
-  background: linear-gradient(180deg, #3a342d, #1f1c19);
-  background-size: cover;
-  position: relative;
-  overflow: hidden;
-}
-
-.content-card__cover::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgba(17, 15, 13, 0.08), rgba(17, 15, 13, 0.62)),
-    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0 2px, transparent 2px 10px);
-}
-
-.content-card__cover[data-cover-tone='urban'] {
-  background: linear-gradient(180deg, #293249, #1c2536);
-}
-
-.content-card__cover[data-cover-tone='costume'] {
-  background: linear-gradient(180deg, #4a2422, #2f1615);
-}
-
-.content-card__cover-meta,
-.content-card__cover-copy {
-  position: relative;
-  z-index: 1;
-}
-
-.content-card__cover-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: flex-start;
-}
-
-.content-card__cover-type {
-  display: inline-flex;
-  align-items: center;
-  min-height: 30px;
-  padding: 0 12px;
-  border-radius: 10px;
-  background: rgba(17, 15, 13, 0.78);
-  color: rgba(247, 239, 230, 0.92);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.content-card__cover-copy {
-  display: grid;
-  gap: 6px;
-  color: #f7efe3;
-}
-
-.content-card__cover-copy strong {
-  font-size: 26px;
-  line-height: 1.12;
-}
-
-.content-card__cover-copy span {
-  color: rgba(247, 239, 230, 0.76);
-}
-
-.content-card__body {
-  display: grid;
-  gap: 14px;
-  padding: 16px 14px 14px;
-}
-
-.content-card__summary {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.content-card__summary p {
-  margin: 0 0 4px;
-  color: rgba(47, 36, 27, 0.46);
-  font-size: 12px;
-}
-
-.content-card__summary strong {
-  font-size: 17px;
-}
-
-.content-card__scene {
-  color: rgba(47, 36, 27, 0.5);
-  font-size: 12px;
-}
-
-.content-card__metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.content-card__metrics div {
-  display: grid;
-  gap: 4px;
-}
-
-.content-card__metrics strong {
-  font-size: 28px;
-  line-height: 1;
-}
-
-.content-card__metrics span {
-  color: rgba(47, 36, 27, 0.44);
-  font-size: 12px;
-  letter-spacing: 0.14em;
-}
-
-.content-card__foot {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: flex-end;
-}
-
-.content-card__signals {
-  display: grid;
-  gap: 3px;
-}
-
-.content-card__signals span {
-  font-weight: 700;
-}
-
-.content-card__signals small {
-  color: rgba(47, 36, 27, 0.52);
-  line-height: 1.6;
-}
-
-.content-table-card :deep(.el-card__body) {
-  padding-top: 20px;
-  padding-bottom: 18px;
-}
-
-.content-table-card .table-header {
-  margin-bottom: 12px;
-  gap: 10px;
-}
-
-.content-table-card .table-header__hint {
-  max-width: 360px;
-  line-height: 1.55;
-}
-
-.content-table-card :deep(.el-table th.el-table__cell) {
-  padding: 11px 0;
-  font-size: 11px;
-}
-
-.content-table-card :deep(.el-table td.el-table__cell) {
-  padding: 11px 0;
-}
-
-.content-table-card :deep(.el-table .cell) {
-  line-height: 1.45;
-}
-
-.content-table-card :deep(.el-table .el-button.is-link),
-.content-table-card :deep(.el-table .el-button--link) {
-  font-size: 13px;
-}
-
-.content-table-card :deep(.el-table :is(th, td).el-table-fixed-column--right) {
-  background: #fffbf5 !important;
-}
-
-.content-table-card :deep(.el-table__fixed-right-patch),
-.content-table-card :deep(.el-table th.el-table-fixed-column--right) {
-  background: #f8f3eb !important;
-}
-
-.stack-cell {
-  display: grid;
-  gap: 3px;
-}
-
-.stack-cell strong {
-  font-size: 14px;
-  line-height: 1.25;
-}
-
-.stack-cell span {
-  color: rgba(47, 36, 27, 0.5);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.content-table-card .pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 14px;
-}
-
-.table-empty {
-  display: grid;
-  gap: 8px;
-  padding: 32px 16px 36px;
-  text-align: center;
-}
-
-.table-empty strong {
-  font-size: 20px;
-}
-
-.table-empty p {
-  max-width: 420px;
-  margin: 0 auto;
-  color: var(--kp-text-secondary);
-  line-height: 1.75;
 }
 
 .detail-layout {

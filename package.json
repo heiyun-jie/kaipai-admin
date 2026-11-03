@@ -5,12 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build && node scripts/sanitize-dist.mjs",
+    "verify:decoration": "node scripts/generate-decoration-renderer.mjs --check && node --test scripts/verify-00264-decoration.test.mjs",
+    "verify:tokenhub": "node --test scripts/verify-00264-tokenhub.test.mjs",
+    "preview:decoration": "node scripts/preview-00264-decoration.mjs",
+    "build": "node scripts/generate-decoration-renderer.mjs --check && vue-tsc --noEmit && vite build && node scripts/sanitize-dist.mjs",
     "e2e:ai-image-providers": "node scripts/e2e-ai-image-providers.mjs",
     "e2e:ai-image-providers:real": "node scripts/e2e-ai-image-providers-real.mjs",
     "e2e:ai-profile-import-config": "node scripts/e2e-ai-profile-import-config.mjs",
     "preview": "vite preview",
-    "type-check": "vue-tsc --noEmit"
+    "type-check": "node scripts/generate-decoration-renderer.mjs --check && vue-tsc --noEmit",
+    "generate:decoration": "node scripts/generate-decoration-renderer.mjs",
+    "verify:decoration-source": "node scripts/generate-decoration-renderer.mjs --check"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

@@ -50,6 +50,7 @@
             :status-meta="resolveTemplateStatus(row.status)"
             :updated-at="formatDateTime(row.updateTime)"
             @edit="openEdit"
+            @decoration="decorationRow = $event"
             @toggle-status="toggleStatus"
             @sort="openSort"
             @publish="openPublish"
@@ -106,6 +107,7 @@
         <el-table-column label="操作" fixed="right" min-width="220">
           <template #default="{ row }">
             <TableActions>
+              <PermissionButton link type="primary" action="page.content.templates" @click="decorationRow = row">页面装修</PermissionButton>
               <PermissionButton link type="primary" action="action.content.template.edit" @click="openEdit(row)">基础编辑</PermissionButton>
               <PermissionButton link type="warning" action="action.content.template.sort" @click="openSort(row)">排序</PermissionButton>
               <PermissionButton link type="success" action="action.content.template.publish" @click="openPublish(row)">发布</PermissionButton>
@@ -124,6 +126,8 @@
         />
       </div>
     </el-card>
+
+    <ActorCardDecorationEditor ref="decorationEditor" v-if="decorationRow" :template-id="decorationRow.templateId" :template-name="decorationRow.templateName" @close="decorationRow = null" />
 
     <el-dialog v-model="editorVisible" :title="editorMode === 'create' ? '新建模板' : '基础编辑'" width="1120px" destroy-on-close>
       <section class="dialog-intro">
@@ -201,6 +205,7 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeRouteLeave } from 'vue-router'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AuditConfirmDialog from '@/components/dialogs/AuditConfirmDialog.vue'
@@ -209,6 +214,7 @@ import PageContainer from '@/components/business/PageContainer.vue'
 import PermissionButton from '@/components/business/PermissionButton.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import TemplateEditorPanel from '@/components/business/TemplateEditorPanel.vue'
+import ActorCardDecorationEditor from '@/components/business/ActorCardDecorationEditor.vue'
 import TemplateGalleryCard from '@/components/business/TemplateGalleryCard.vue'
 import TemplateOverviewPanel from '@/components/business/TemplateOverviewPanel.vue'
 import {
@@ -246,6 +252,9 @@ import type {
 } from '@/types/template-editor'
 import AdminPager from '@/components/business/AdminPager.vue'
 
+const decorationEditor = ref<InstanceType<typeof ActorCardDecorationEditor> | null>(null)
+onBeforeRouteLeave(async () => decorationEditor.value ? decorationEditor.value.canLeave() : true)
+const decorationRow = ref<TemplateItem | null>(null)
 const loading = ref(false)
 const submitting = ref(false)
 const rows = ref<TemplateItem[]>([])
