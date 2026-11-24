@@ -4,4 +4,3 @@ export interface EditorBackgroundApi {
   context(id: number): Promise<EditorBackgroundContext>
   saveContext(id: number, payload: { expectedRevision: number; backgroundId: number | null }): Promise<EditorBackgroundContext>
 }
-export const BACKGROUND_STYLES = [{ value: 'classic', label: '经典' }, { value: 'urban', label: '都市' }, { value: 'ancient', label: '古风' }, { value: 'fresh', label: '清新' }]

@@ -58,7 +58,7 @@
       </el-form-item>
       <el-form-item label="风格">
         <el-select v-model="filters.style" clearable placeholder="全部风格" style="width: 160px">
-          <el-option v-for="(label, value) in STYLE_LABELS" :key="value" :label="label" :value="value" />
+          <el-option v-for="option in styleOptions" :key="option.value" :label="option.label" :value="option.value" />
         </el-select>
       </el-form-item>
     </el-form>
@@ -211,13 +211,21 @@ import type {
   ContentActorCardStatusCounts,
 } from '@/types/content'
 import { formatDateTime, maskPhone } from '@/utils/format'
+import { usePermissionStore } from '@/stores/permission'
+import {
+  actorCardStyleLabel,
+  loadActorCardStyleOptions,
+  normalizeActorCardStyle,
+  type ActorCardStyleOption,
+} from '@/utils/actor-card-style'
 
 type SegmentKey = 'all' | 'published' | 'draft'
 type ViewMode = 'gallery' | 'table'
 type StatusTone = 'info' | 'warning' | 'success' | 'danger'
 
-/** 与小程序名片夹 / 渲染器的风格文案一致 */
-const STYLE_LABELS: Record<string, string> = { classic: '经典', urban: '都市', ancient: '古风', fresh: '清新' }
+// 00-267: 风格 = 后台风格模板；无模板页权限时只按场景码显示默认名称
+const permission = usePermissionStore()
+const styleOptions = ref<ActorCardStyleOption[]>([])
 
 const loading = ref(false)
 const rows = ref<ContentActorCardGovernanceItem[]>([])
@@ -243,17 +251,26 @@ const segmentOptions = computed(() => [
 ])
 
 function resolveStyleLabel(style?: string | null) {
-  return (style && STYLE_LABELS[style]) || style || '未选风格'
+  return actorCardStyleLabel(style, styleOptions.value)
 }
 
 function resolveStyleTone(style?: string | null) {
-  if (style === 'urban') {
-    return 'urban'
-  }
-  if (style === 'ancient') {
-    return 'costume'
+  const normalized = normalizeActorCardStyle(style)
+  if (normalized === 'urban' || normalized === 'costume') {
+    return normalized
   }
   return 'base'
+}
+
+async function loadStyleOptions() {
+  if (!permission.hasPage('page.content.templates')) {
+    return
+  }
+  try {
+    styleOptions.value = await loadActorCardStyleOptions()
+  } catch {
+    styleOptions.value = []
+  }
 }
 
 function resolveStatusLabel(status?: string | null) {
@@ -319,7 +336,10 @@ function resetFilters() {
   search()
 }
 
-onMounted(loadList)
+onMounted(() => {
+  void loadStyleOptions()
+  loadList()
+})
 </script>
 
 <style scoped lang="scss">

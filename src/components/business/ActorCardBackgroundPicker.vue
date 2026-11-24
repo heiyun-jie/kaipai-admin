@@ -1,23 +1,43 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { publicBackgroundApi as api } from '../../api/actor-card-background'
-import { BACKGROUND_STYLES, type PublicBackground } from '../../types/actor-card-background'
+import type { PublicBackground } from '../../types/actor-card-background'
 import { usePermissionStore } from '@/stores/permission'
 import { vNumberInputDisabledAria } from '../../utils/number-input-disabled-aria'
+import { actorCardStyleLabel, isLegacyActorCardStyle, loadActorCardStyleOptions, type ActorCardStyleOption } from '../../utils/actor-card-style'
 const props = defineProps<{ open: boolean; disabled?: boolean }>()
 const emit = defineEmits<{ close: []; choose: [item: PublicBackground]; busy: [value: boolean] }>()
-const styles = BACKGROUND_STYLES, style = ref('classic'), items = ref<PublicBackground[]>([]), page = ref(1), busy = ref(false), error = ref(''), input = ref<HTMLInputElement | null>(null)
+// 00-267: 分类 = 后台风格模板；图库里不属于任何模板的旧分类（如 fresh）只读列出，便于改归
+const styles = ref<ActorCardStyleOption[]>([]), legacyStyles = ref<string[]>([])
+const style = ref(''), items = ref<PublicBackground[]>([]), page = ref(1), busy = ref(false), error = ref(''), input = ref<HTMLInputElement | null>(null)
+const currentIsLegacy = computed(() => isLegacyActorCardStyle(style.value, styles.value))
 const permission = usePermissionStore()
 let generation = 0
 watch(busy, value => emit('busy', value), { flush: 'sync' })
+function templateOptionLabel(option: ActorCardStyleOption) { return option.enabled ? option.label : `${option.label}（已停用）` }
+async function loadStyles() {
+  const [options, all] = await Promise.all([loadActorCardStyleOptions(), api.listAll()])
+  styles.value = options
+  legacyStyles.value = [...new Set(all.map(item => item.style))].filter(value => isLegacyActorCardStyle(value, options))
+  const known = [...options.map(item => item.value), ...legacyStyles.value]
+  if (!known.includes(style.value)) style.value = (options.find(item => item.enabled) ?? options[0])?.value ?? legacyStyles.value[0] ?? ''
+}
 async function load() {
+  if (!style.value) { items.value = []; return }
   const token = ++generation; busy.value = true; error.value = ''
   try { const result = await api.list(style.value, page.value); if (token === generation) items.value = result }
   catch (e) { if (token === generation) { items.value = []; error.value = (e as Error).message || '图库加载失败' } }
   finally { if (token === generation) busy.value = false }
 }
-watch(() => props.open, open => { if (open) { page.value = 1; void load() } else { generation++; busy.value = false } })
+// 注意：不能命名为 open —— <script setup> 中本地绑定会遮蔽模板里的 prop `open`
+async function openCatalog() {
+  page.value = 1; const before = style.value
+  try { await loadStyles() } catch (e) { error.value = (e as Error).message || '风格模板加载失败'; return }
+  // 风格变化时由 watch(style) 负责加载，避免重复请求
+  if (style.value === before) void load()
+}
+watch(() => props.open, isOpen => { if (isOpen) void openCatalog(); else { generation++; busy.value = false } })
 watch(style, () => { page.value = 1; if (props.open) void load() })
 onBeforeUnmount(() => { generation++; emit('busy', false) })
 async function upload(e: Event) {
@@ -42,12 +62,16 @@ function close() { if (!busy.value) emit('close') }
 <template>
   <el-dialog :model-value="open" title="公共背景图库 · 与小程序共用" width="min(1040px, 95vw)" append-to-body :close-on-click-modal="false" :before-close="close">
     <div class="catalog-toolbar">
-      <el-select v-model="style" :disabled="busy" aria-label="背景风格"><el-option v-for="s in styles" :key="s.value" :value="s.value" :label="s.label" /></el-select>
+      <el-select v-model="style" :disabled="busy" aria-label="背景风格">
+        <el-option v-for="s in styles" :key="s.value" :value="s.value" :label="templateOptionLabel(s)" />
+        <el-option v-for="s in legacyStyles" :key="s" :value="s" :label="`旧分类：${actorCardStyleLabel(s)}`" />
+      </el-select>
       <el-button :disabled="busy" @click="load">刷新图库</el-button>
-      <el-button v-if="permission.hasAction('action.content.template.edit')" type="primary" :disabled="busy || disabled" @click="input?.click()">上传图片到公共图库</el-button>
+      <el-button v-if="permission.hasAction('action.content.template.edit')" type="primary" :disabled="busy || disabled || currentIsLegacy || !style" :title="currentIsLegacy ? '旧分类没有对应风格模板，不能再上传，请先在风格模板中创建该风格' : ''" @click="input?.click()">上传图片到公共图库</el-button>
       <input ref="input" type="file" hidden accept="image/jpeg,image/png" @change="upload" />
     </div>
-    <p class="catalog-help">背景 ID、风格、图片与排序来自同一服务端图库。停用项仅后台可见，不可用于新选择；已有分享卡保持原版本。上传图片仅新增，不覆盖旧图。</p>
+    <p class="catalog-help">风格分类即「风格模板」，小程序只展示启用模板对应的背景。背景 ID、风格、图片与排序来自同一服务端图库。停用项仅后台可见，不可用于新选择；已有分享卡保持原版本。上传图片仅新增，不覆盖旧图。</p>
+    <el-alert v-if="currentIsLegacy" type="warning" :closable="false" title="该旧分类没有对应风格模板，小程序不会展示；可在下方把背景改归到某个风格模板。" />
     <el-alert v-if="error" :title="error" type="error" :closable="false" />
     <p v-if="busy" role="status">正在处理…</p>
     <div v-number-input-disabled-aria="busy || !!disabled" class="background-grid">
@@ -55,7 +79,7 @@ function close() { if (!busy.value) emit('close') }
         <img :src="item.thumbnailUrl || item.imageUrl" :alt="`背景 ${item.id}`" loading="lazy" />
         <div class="background-meta"><strong>#{{ item.id }}</strong><el-tag :type="item.enabled ? 'success' : 'info'">{{ item.enabled ? '已启用' : '已停用' }}</el-tag></div>
         <div v-if="permission.hasAction('action.content.template.edit')" class="background-controls">
-          <el-select :model-value="item.style" :disabled="busy || disabled" :aria-label="`背景${item.id}风格`" @update:model-value="edit(item, 'style', $event)"><el-option v-for="s in styles" :key="s.value" :value="s.value" :label="s.label" /></el-select>
+          <el-select :model-value="item.style" :disabled="busy || disabled" :aria-label="`背景${item.id}风格`" @update:model-value="edit(item, 'style', $event)"><el-option v-for="s in styles" :key="s.value" :value="s.value" :label="templateOptionLabel(s)" /><el-option v-if="isLegacyActorCardStyle(item.style, styles)" :value="item.style" :label="`旧分类：${actorCardStyleLabel(item.style)}`" disabled /></el-select>
           <label>排序<el-input-number :model-value="item.sortOrder" :min="0" :max="99999" :disabled="busy || disabled" @change="edit(item, 'sortOrder', $event)" /></label>
           <el-switch :model-value="item.enabled === 1" :disabled="busy || disabled" :aria-label="`背景${item.id}启用`" @update:model-value="edit(item, 'enabled', $event ? 1 : 0)" />
         </div>
